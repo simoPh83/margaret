@@ -1,1 +1,73 @@
+//launch the app on localhost
 npm run dev
+
+_________________________________________________
+
+
+//tauri instructions MacOs
+Step 1 Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+default installation is Finished
+
+then restart your terminal with
+source ~/.cargo/env
+
+
+Step 2 Add Tauri to the projec
+npm install @tauri-apps/cli @tauri-apps/api
+
+Step 3 Initialize Tauri:
+npx tauri init
+
+App name: Margaret
+Window title: Margaret
+Where are web assets: ../out ← important, this is the static export folder
+Dev server URL: http://localhost:3000
+Dev command: npm run dev
+Build command: npm run build
+
+Step 4 Build the mac app
+npx tauri build
+
+This produces a .dmg installer in src-tauri/target/release/bundle/dmg/
+
+
+_________________________________________________
+
+
+
+//tauri instructions Windows
+Prerequisites (do these once):
+
+Step 1 Install Rust
+Go to https://rustup.rs and download/run rustup-init.exe
+Choose default installation when prompted
+Restart your terminal after installation
+
+Step 2 Install WebView2
+WebView2 is usually already present on Windows 10/11.
+If not, download the Evergreen runtime from:
+https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+
+Step 3 Install Visual Studio C++ Build Tools
+Download from https://visualstudio.microsoft.com/visual-cpp-build-tools/
+During install, select "Desktop development with C++"
+
+Step 4 Add Tauri to the project (skip if already done on Mac)
+npm install @tauri-apps/cli @tauri-apps/api
+
+Step 5 Initialize Tauri (skip if src-tauri folder already exists from Mac)
+npx tauri init
+
+App name: Margaret
+Window title: Margaret
+Where are web assets: ../out
+Dev server URL: http://localhost:3000
+Dev command: npm run dev
+Build command: npm run build
+
+Step 6 Build the Windows app
+npx tauri build
+
+This produces a .msi and .exe installer in src-tauri\target\release\bundle\msi\ and src-tauri\target\release\bundle\nsis\
