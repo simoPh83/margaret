@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'   # fires on v1.0.0, v2.3.1, etc. — not on plain pushes
+  workflow_dispatch:   # adds a manual "Run workflow" button in the Actions tab
 
 permissions:
   contents: write
