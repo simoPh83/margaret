@@ -3,11 +3,17 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppBar, Box, Button, CircularProgress, Toolbar, Typography } from '@mui/material'
 import { supabase } from '@/lib/supabase'
+import { checkForUpdate, UpdateInfo } from '@/lib/updater'
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
+
+  useEffect(() => {
+    checkForUpdate().then(setUpdate)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -45,6 +51,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           <Button variant="outlined" size="small" onClick={logout}>
             Logout
           </Button>
+          {update && (
+            <Button variant="contained" size="small" color="warning" onClick={update.install}>
+              Update to {update.version}
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
       {children}

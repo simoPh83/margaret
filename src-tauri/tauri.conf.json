@@ -23,6 +23,14 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVERjNEOEUxNzczNERDQzAKUldUQTNEUjM0ZGp6WGMzWnBFQ3BrTlcvWXIvWXhvdjdGR3FrY1FkWlpIN2txM3g3d09rekFiRy8K",
+      "endpoints": [
+        "https://simoPh83.github.io/margaret/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

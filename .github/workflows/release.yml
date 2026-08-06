@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'   # fires on v1.0.0, v2.3.1, etc. — not on plain pushes
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Build on each platform ──────────────────────────────────────────────────
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            args: --target x86_64-pc-windows-msvc
+            rust-target: x86_64-pc-windows-msvc
+
+          - runner: macos-latest
+            args: --target x86_64-apple-darwin
+            rust-target: x86_64-apple-darwin
+
+          - runner: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Builds the app, signs artifacts, creates/updates the draft GitHub
+      # Release, and uploads all platform installers + .sig files.
+      - name: Build and upload to release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Margaret ${{ github.ref_name }}
+          releaseBody: >
+            Install the correct file for your platform below.
+            Existing installs will be prompted to update automatically.
+          releaseDraft: true    # stays draft until all platforms finish
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # ── After all builds: generate update manifest and publish ──────────────────
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download .sig files from the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir sigs
+          gh release download "${{ github.ref_name }}" \
+            --pattern "*.sig" \
+            --dir sigs
+
+      - name: Generate latest.json
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          tag     = os.environ['TAG']
+          repo    = os.environ['REPO']
+          version = tag.lstrip('v')
+          base    = f"https://github.com/{repo}/releases/download/{tag}"
+          date    = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          platforms = {}
+          for sig_file in sorted(Path('sigs').glob('*.sig')):
+              stem = sig_file.stem          # filename without .sig extension
+              sig  = sig_file.read_text().strip()
+              if 'x64-setup.nsis' in stem:
+                  platforms['windows-x86_64'] = {'signature': sig, 'url': f"{base}/{stem}"}
+              elif 'aarch64.app.tar' in stem:
+                  platforms['darwin-aarch64'] = {'signature': sig, 'url': f"{base}/{stem}"}
+              elif 'x64.app.tar' in stem:
+                  platforms['darwin-x86_64']  = {'signature': sig, 'url': f"{base}/{stem}"}
+
+          manifest = {
+              'version':  version,
+              'notes':    f'Release {tag} — https://github.com/{repo}/releases/tag/{tag}',
+              'pub_date': date,
+              'platforms': platforms,
+          }
+          Path('update-manifest').mkdir(exist_ok=True)
+          Path('update-manifest/latest.json').write_text(json.dumps(manifest, indent=2))
+          print(json.dumps(manifest, indent=2))
+          EOF
+
+      - name: Deploy latest.json to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./update-manifest
+          keep_files: false    # only latest.json lives on gh-pages
+
+      - name: Publish release (undraft)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" --draft=false
