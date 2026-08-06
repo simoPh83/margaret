@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'   # fires on any tag starting with v, e.g. v1.0.0
+      - 'v*.*.*'   # fires on v1.0.0, v2.3.1, etc. — not on plain pushes
 
 permissions:
   contents: write
