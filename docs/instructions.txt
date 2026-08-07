@@ -3,6 +3,34 @@ npm run dev
 
 _________________________________________________
 
+GIT RELEASES
+
+
+src-tauri/tauri.conf.json       // contains the version baked in the app v0.1.5
+package.json                    // update the version here (this is just a convention for Node/npm tooling)
+github tag                      // push the tag to git hub
+
+
+
+
+
+git add .
+git commit -m "release v0.1.5"
+git push                    # push commits first
+git tag v0.1.5              # create tag locally
+git push origin v0.1.5      # push tag separately
+
+
+
+
+
+
+
+
+
+_________________________________________________
+
+
 
 //tauri instructions MacOs
 Step 1 Install Rust
@@ -28,7 +56,7 @@ Dev command: npm run dev
 Build command: npm run build
 
 Step 4 Build the mac app
-npx tauri build
+npm run tauri:build       //the script expects a file named "private.tauri.key" with the private key in /src-tauri. This file is not committed
 
 This produces a .dmg installer in src-tauri/target/release/bundle/dmg/
 
