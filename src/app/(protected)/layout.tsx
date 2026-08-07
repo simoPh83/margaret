@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppBar, Box, Button, CircularProgress, Toolbar, Typography } from '@mui/material'
+import { getVersion } from '@tauri-apps/api/app'
 import { supabase } from '@/lib/supabase'
 import { checkForUpdate, UpdateInfo } from '@/lib/updater'
 
@@ -10,9 +11,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const [checking, setChecking] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
+  const [version, setVersion] = useState<string | null>(null)
 
   useEffect(() => {
-    checkForUpdate().then(setUpdate)
+    getVersion().then(setVersion).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -42,7 +44,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <>
       <AppBar position="static" color="default" elevation={1}>
-        <Toolbar sx={{ justifyContent: 'flex-end', gap: 2 }}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
+            Margaret App{version && ` v${version}`}
+          </Typography>
           {userEmail && (
             <Typography variant="body2" color="text.secondary">
               {userEmail}

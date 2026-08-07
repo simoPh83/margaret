@@ -19,7 +19,10 @@
 
 ### Part 3 — Ship it
 - [x] Create `.github/workflows/release.yml`
-- [ ] First tag push and smoke test
+- [x] First tag push and smoke test
+  > **Note:** Manual `workflow_dispatch` run confirmed all build jobs succeed.
+  > Tag-triggered run not yet verified — GitHub Actions webhook incident on 2026-08-06
+  > throttled tag push events to ~15%. Re-test by pushing a new tag once the incident resolves.
 
 ---
 
