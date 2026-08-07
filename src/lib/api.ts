@@ -4,7 +4,7 @@ export async function apiFetch(path: string, options?: RequestInit) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
 
-  return fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -12,4 +12,10 @@ export async function apiFetch(path: string, options?: RequestInit) {
       ...options?.headers,
     },
   })
+
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`)
+  }
+
+  return res
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppBar, Box, Button, CircularProgress, Toolbar, Typography } from '@mui/material'
 import { getVersion } from '@tauri-apps/api/app'
+import { open } from '@tauri-apps/plugin-shell'
 import { supabase } from '@/lib/supabase'
 import { checkForUpdate, UpdateInfo } from '@/lib/updater'
 
@@ -15,6 +16,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    checkForUpdate().then(setUpdate).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -57,8 +62,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
             Logout
           </Button>
           {update && (
-            <Button variant="contained" size="small" color="warning" onClick={update.install}>
-              Update to {update.version}
+            <Button variant="contained" size="small" color="warning" onClick={() =>
+              update.install().catch(() => open(update.manualUrl))
+            }>
+              Update to {update.version} ↗
             </Button>
           )}
         </Toolbar>
