@@ -1,15 +1,15 @@
 {
-  "version": "0.1.4",
-  "notes": "Release v0.1.4 \u2014 https://github.com/simoPh83/margaret/releases/tag/v0.1.4",
-  "pub_date": "2026-08-07T10:14:57Z",
+  "version": "0.1.6",
+  "notes": "Release v0.1.6 \u2014 https://github.com/simoPh83/margaret/releases/tag/v0.1.6",
+  "pub_date": "2026-08-07T12:32:03Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WGNZZ1Z6WTRqMGxMdFQzZlk4UEtsVEUvR2x2VHEwZHNWRENTZWtIUlRDSVF5M2tsQVFPSi9tK215V09BWHBIWnRzNlR4Lzlrbkh2eGY4ZUE0SXBtWEE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MDk3NjI0CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpiNW9ZaHhZSXlpWXZvREdabGRtRkdBcDhNVGkvbjNTVDlsM3R3Ym03QkxDN1N4cCs2VjZoL3k1aEZZY1BpSkU2MGRnaDRqbDluVENSS1NHR2pyb2ZBdz09Cg==",
-      "url": "https://github.com/simoPh83/margaret/releases/download/v0.1.4/margaret_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFhrZjh2dWM3ekQ4ZnZmdk1tR3FpOHpObGdPVDd1NjVNb05mUUh5b1pVODVmeUdPdGd1SHRkOFRVbTBtbGN1a25FaTd3cjB0Tkt0M2pBeUNiRGV6R0E0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MTA1NzMyCWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpFMGc4dmdTbEI5Sjl1NUNQeWZLR2pjNzZFSzY2YytBQmE4dXJ5UnRaZXJFcmluRUk2TFgwa1BGQ0RaKzZjcXlFdU9pRHNBTXMyK2lSQWNqNkdsK0hDdz09Cg==",
+      "url": "https://github.com/simoPh83/margaret/releases/download/v0.1.6/margaret_aarch64.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFhyaUdyck5rRXdOcU9sTGJTWUlPcXNQT3p4b0NoWERVa3hVU0g2a0dRNFRKK1plZmllc1haUVp0Y05yaGJMOThJWW1NM0VPU2pZMXhBUWZKa1lsZ2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MDk3NjU2CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpobWFGN2ZMNGIwN0hmNHVkNUZZL0R3Q2k4eTZxb09Qci9YYTYwSnM1RlF4aExyQWhEVERzcWxhVWFHL0VKTnlRYmlZUkZoSE5lOHZqYk9LUFlZWjBEQT09Cg==",
-      "url": "https://github.com/simoPh83/margaret/releases/download/v0.1.4/margaret_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFp4a0tLbGcvT3BEeDYwYkhqTGxLckEvRnJ2ZStBcFEwbWttb0NOTy9OSWRVelJVTUdiWDU5dmJ3c1RkUnVQemV3SUVWd1dWQjFFVE15cy9EeEZSaWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MTA1OTA0CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpzMTgrVE9LWDhjeVJIRVZmNUlTVUNXdWltMVp2Sy9MTTVjY1kwZUUvQllaUmlvS1NWTXVFREUxYkFMSEFKS2MrNStjR2UvUXMyeE5jRU5TTnNXVU9Edz09Cg==",
+      "url": "https://github.com/simoPh83/margaret/releases/download/v0.1.6/margaret_x64.app.tar.gz"
     }
   }
 }
