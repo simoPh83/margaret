@@ -96,6 +96,6 @@ Dev command: npm run dev
 Build command: npm run build
 
 Step 6 Build the Windows app
-npx tauri build
+npm run tauri:build
 
 This produces a .msi and .exe installer in src-tauri\target\release\bundle\msi\ and src-tauri\target\release\bundle\nsis\

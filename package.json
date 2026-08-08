@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
-    "tauri:build": "TAURI_SIGNING_PRIVATE_KEY=$(cat src-tauri/private.tauri.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat src-tauri/private.tauri.key.pass) npx tauri build"
+    "tauri:build": "node scripts/tauri-build.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
