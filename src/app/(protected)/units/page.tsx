@@ -1,23 +1,15 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
 import { DataGrid, GridColDef, GridValidRowModel } from '@mui/x-data-grid'
 import { Box, Typography, Alert } from '@mui/material'
-import { apiFetch } from '@/lib/api'
+import { useUnits } from '@/lib/units'
 
 export default function UnitsPage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['units', 'table'],
-    queryFn: () => apiFetch('/api/units/table-data').then((r) => r.json()),
-    retry: false,
-  })
-
-  const tableData = data?.table_data ?? data
-  const rows: GridValidRowModel[] = Array.isArray(tableData)
-    ? tableData
-    : (tableData?.rows ?? tableData?.data ?? [])
+  const { data, isLoading, error } = useUnits()
+  const rows = data?.rows ?? []
+  const raw = data?.raw
 
   // cells[field].sort_value for correct sorting; cells[field].display for rendering
-  const columns: GridColDef[] = (tableData?.columns ?? []).map(
+  const columns: GridColDef[] = (data?.columns ?? []).map(
     (col: { field: string; headerName: string }) => ({
       field: col.field,
       headerName: col.headerName,
@@ -39,12 +31,12 @@ export default function UnitsPage() {
       {/* Temporary: show raw API shape until column mapping is confirmed */}
       {!isLoading && rows.length === 0 && !error && (
         <Box component="pre" sx={{ fontSize: 12, overflowX: 'auto', mb: 2, bgcolor: '#f5f5f5', p: 2 }}>
-          {JSON.stringify(data, null, 2)}
+          {JSON.stringify(raw, null, 2)}
         </Box>
       )}
       {rows.length > 0 && (
         <DataGrid
-          rows={rows}
+          rows={rows as GridValidRowModel[]}
           columns={columns}
           loading={isLoading}
           autoHeight
