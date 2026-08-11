@@ -1,19 +1,19 @@
 {
-  "version": "0.2.2",
-  "notes": "Release v0.2.2 \u2014 https://github.com/simoPh83/margaret/releases/tag/v0.2.2",
-  "pub_date": "2026-08-11T20:25:37Z",
+  "version": "0.2.3",
+  "notes": "Release v0.2.3 \u2014 https://github.com/simoPh83/margaret/releases/tag/v0.2.3",
+  "pub_date": "2026-08-11T22:15:14Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WGZZU2YwWndSeDM0bGdmT1ZCSGZNdVc3eWd6bnNqZGowdlJUaVRPeW9KZm5zbFBWWUVPSURaYXUzeWRpdWE1N0tDRVQvVldyUXRob21HOVBqVDJydkFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDc5ODUxCWZpbGU6bWFyZ2FyZXRfMC4yLjJfeDY0LXNldHVwLmV4ZQprM2NWZlgvZ2JuTUdMTWJXSlJLMzAydElZeG5rSHRwY281SWVUWC9jRXEvS1hJLzN3a0ZwUUlzMzV4THNCUVNwOGFNdWRVOFlRR1gyMkpFejdLWi9DUT09Cg==",
-      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.2/margaret_0.2.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WGVkWUxOeXdLTHlYWWlzQVNSQkVDUHFRcmNmWXB5WjdiMlNOL0NOTGRJZVc3RDlzWFA2Ym9ablJ3aXB3NWdiTGxoNFAwcVFhSVJPYmxaSTVBSVlNdlE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDg2NDI5CWZpbGU6bWFyZ2FyZXRfMC4yLjNfeDY0LXNldHVwLmV4ZQo2cUkybm5wWk4zUFBsRExQektPNlpEWVZtS09kU0w5bCtTeWZKU05zVFljbmJhMDFxMXF5U0JYUUUxK1NOOFdEODRraGlGNGF2ZjBUTldoakh1THdDZz09Cg==",
+      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.3/margaret_0.2.3_x64-setup.exe"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFVTSGRlWEtvUzBKTnJ1UEYyN0ZVWi9RL2l2VUpKamVoeWxYSnk1andBbEZVc0Fha0hraVVKWTFkSVlCeTBvdEhtbHgvS3NzRVE5NzE2REthVm8zc0F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDc5NzMzCWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpFcExlL3pLRDVZT21uK3YxdjdtbVlmZ2haRCtwY0FrUGtnKy9xRGVpQ1VxcnoxTTM3WlRqek1pQ0djTmNYeTBGaFVTMlU5emkrZEV0TjRYbVVyMzVCdz09Cg==",
-      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.2/margaret_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WGRpaTViTDBBZHRhZnJka0RxV3NOKzdnMjRza2h4Z1lYUGVwWmtoaHdmRnFXd3lRL0UxZUlibFY3Z3NPdkhDWndQbFhObE80Y096Ty9mdTExdnJLdEFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDg2MzU0CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpKWGU5b0NXYWVtOC94dDNoaW9Ram5DVTBtZnBNUGROT1hOUytUYTd6MUlTc3IyRnNBMHVhTzBMc212b2tjbUw0SWVpeXV3UzRUbndpUXFuSW1rNy9Cdz09Cg==",
+      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.3/margaret_aarch64.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFc3azQ0YWEvVnFxUkF0MFpKQThYT2tld2tWamYwbk91bG5JcWJyQWJZOGZMMEdGSFh0d0dmVjZ4eFk0Um1lN21XMU80dUFla0RxSHhjU0s2am5HUndFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDc5ODk3CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpmeHFSNFZ5UXlndlZjdHVDTEM0dnErQzY4MUo4bFdlbnpDTE84bjVKVURXbDF5WXZGQzlCK1hUc1dqNXp4aS9TYmdjeUtSN0t4NHNOTk90MThIR2JEdz09Cg==",
-      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.2/margaret_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQTNEUjM0ZGp6WFV6VUlQMXNWYUFTMnVFSm9XTTQwTFJLMy9ja0JBVHhkR2dHMTNXVTgydjU0Z2kvcU9vaHh3UE8xbXJDK3Exd1BRekxmc013RHRwSkxGWkVFQ29NZVFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDg2NDc0CWZpbGU6bWFyZ2FyZXQuYXBwLnRhci5negpySTg5dEVPYmhVUHpVRHo1aXVVTi9pL2JMN0RoQnovTnkzNlRNNUg4VU1UbVdJbDZWYWY1VlRyN05DTHd1bmRjOWY3dnJvSmJLQXBOaE1SdWN2ZnJEdz09Cg==",
+      "url": "https://github.com/simoPh83/margaret/releases/download/v0.2.3/margaret_x64.app.tar.gz"
     }
   }
 }
