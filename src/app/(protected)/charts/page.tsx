@@ -16,12 +16,14 @@ import {
   YAxis,
 } from 'recharts'
 import type { PieSectorShapeProps } from 'recharts'
-import { cellNumber, cellText, findField, useUnits } from '@/lib/units'
+import { buildingLabel, cellNumber, cellText, useUnits } from '@/lib/units'
 
 const STATUS_COLORS: Record<string, string> = {
   Let: '#2563eb',
   Vacant: '#f59e0b',
-  'Under Offer': '#10b981',
+  Mothballed: '#64748b',
+  'Under Ref': '#8b5cf6',
+  'U-O': '#10b981',
 }
 const FALLBACK_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b']
 
@@ -54,49 +56,82 @@ function DonutSector(props: PieSectorShapeProps) {
 export default function ChartsPage() {
   const { data, isLoading, error } = useUnits()
   const rows = data?.rows ?? []
-  const columns = data?.columns ?? []
 
-  const statusField = findField(columns, /^status$/i)
-  const rentField = findField(columns, /rent/i, /^rent_pa$/i)
-  const ervField = findField(columns, /erv/i)
-  const sqftField = findField(columns, /sq\s*ft|sqft|area|size/i)
+  const ervYear = (data?.raw as { table_data?: { metadata?: { erv_year?: number } } } | undefined)
+    ?.table_data?.metadata?.erv_year
+  const ervLabel = ervYear ? `ERV (${ervYear})` : 'ERV'
 
   const statusData = useMemo(() => {
-    if (!statusField) return []
-    const counts = new Map<string, number>()
+    const groups = new Map<string, { count: number; sqft: number }>()
     for (const row of rows) {
-      const status = cellText(row, statusField) || 'Unknown'
-      counts.set(status, (counts.get(status) ?? 0) + 1)
+      const status = cellText(row, 'status') || 'Unknown'
+      const entry = groups.get(status) ?? { count: 0, sqft: 0 }
+      entry.count += 1
+      entry.sqft += cellNumber(row, 'sq_ft')
+      groups.set(status, entry)
     }
-    return [...counts.entries()].map(([name, value]) => ({ name, value }))
-  }, [rows, statusField])
+    return [...groups.entries()].map(([name, v]) => ({ name, value: v.count, sqft: v.sqft }))
+  }, [rows])
 
-  const rentByStatus = useMemo(() => {
-    if (!statusField || !rentField) return []
-    const sums = new Map<string, { rent: number; erv: number }>()
+  const rentByBuilding = useMemo(() => {
+    const byBuilding = new Map<string | number, { name: string; rent: number; erv: number }>()
     for (const row of rows) {
-      const status = cellText(row, statusField) || 'Unknown'
-      const entry = sums.get(status) ?? { rent: 0, erv: 0 }
-      entry.rent += cellNumber(row, rentField)
-      entry.erv += ervField ? cellNumber(row, ervField) : 0
-      sums.set(status, entry)
+      const key = row.metadata?.raw_unit?.building_id ?? 'unknown'
+      const entry = byBuilding.get(key) ?? { name: buildingLabel(row), rent: 0, erv: 0 }
+      entry.rent += cellNumber(row, 'rent')
+      entry.erv += cellNumber(row, 'erv')
+      byBuilding.set(key, entry)
     }
-    return [...sums.entries()].map(([name, v]) => ({ name, ...v }))
-  }, [rows, statusField, rentField, ervField])
+    return [...byBuilding.values()].sort((a, b) => b.rent - a.rent).slice(0, 12)
+  }, [rows])
 
-  const topByRent = useMemo(() => {
-    if (!rentField) return []
-    const nameField = findField(columns, /unit|name/i) ?? columns[0]?.field
-    return rows
-      .map((row) => ({
-        name: (nameField && cellText(row, nameField)) || '—',
-        rent: cellNumber(row, rentField),
-      }))
-      .sort((a, b) => b.rent - a.rent)
-      .slice(0, 10)
-  }, [rows, columns, rentField])
+  const vacancyAging = useMemo(() => {
+    const buckets = [
+      { name: '< 3 mo', min: 0, max: 90, count: 0 },
+      { name: '3–6 mo', min: 90, max: 180, count: 0 },
+      { name: '6–12 mo', min: 180, max: 365, count: 0 },
+      { name: '1–2 yrs', min: 365, max: 730, count: 0 },
+      { name: '2+ yrs', min: 730, max: Infinity, count: 0 },
+    ]
+    const now = Date.now()
+    for (const row of rows) {
+      const since = row.cells?.vacant_since?.sort_value
+      if (typeof since !== 'string' || !since) continue
+      const days = Math.floor((now - new Date(since).getTime()) / 86_400_000)
+      if (!Number.isFinite(days) || days < 0) continue
+      buckets.find((b) => days >= b.min && days < b.max)!.count++
+    }
+    return buckets.map(({ name, count }) => ({ name, count }))
+  }, [rows])
 
-  const totalSqft = sqftField ? rows.reduce((s, r) => s + cellNumber(r, sqftField), 0) : 0
+  const topVacantBuildings = useMemo(() => {
+    const byBuilding = new Map<string | number, { name: string; sqft: number }>()
+    for (const row of rows) {
+      const status = cellText(row, 'status')
+      if (status !== 'Vacant' && status !== 'Mothballed') continue
+      const key = row.metadata?.raw_unit?.building_id ?? 'unknown'
+      const entry = byBuilding.get(key) ?? { name: buildingLabel(row), sqft: 0 }
+      entry.sqft += cellNumber(row, 'sq_ft')
+      byBuilding.set(key, entry)
+    }
+    return [...byBuilding.values()].sort((a, b) => b.sqft - a.sqft).slice(0, 5)
+  }, [rows])
+
+  const expiriesByYear = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const row of rows) {
+      const value = row.cells?.expiry_date?.sort_value
+      if (typeof value !== 'string' || value.length < 4) continue
+      const year = Number(value.slice(0, 4))
+      if (!Number.isFinite(year)) continue
+      counts.set(year, (counts.get(year) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, count]) => ({ year: String(year), count }))
+  }, [rows])
+
+  const totalSqft = rows.reduce((s, r) => s + cellNumber(r, 'sq_ft'), 0)
 
   if (error) {
     return (
@@ -128,7 +163,9 @@ export default function ChartsPage() {
                   innerRadius={60}
                   outerRadius={100}
                   paddingAngle={2}
-                  label={({ name, value }) => `${name}: ${value}`}
+                  label={({ name, value }) =>
+                    `${name}: ${((Number(value) / rows.length) * 100).toFixed(0)}%`
+                  }
                   shape={DonutSector}
                   isAnimationActive
                   animationDuration={600}
@@ -141,7 +178,13 @@ export default function ChartsPage() {
                     />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value, name, item) => [
+                    `${value} units · ${Math.round(Number(item?.payload?.sqft ?? 0)).toLocaleString()} sq ft`,
+                    name,
+                  ]}
+                />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -150,30 +193,9 @@ export default function ChartsPage() {
 
         <Card variant="outlined">
           <CardContent>
-            <Typography variant="subtitle1" gutterBottom>Passing Rent vs ERV by Status</Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={rentByStatus}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => `£${v / 1000}k`} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v) => gbp(Number(v))}
-                  cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-                />
-                <Legend />
-                <Bar dataKey="rent" name="Rent PA" fill="#2563eb" radius={[4, 4, 0, 0]} animationDuration={800} />
-                <Bar dataKey="erv" name="ERV (2025)" fill="#93c5fd" radius={[4, 4, 0, 0]} animationDuration={800} animationBegin={150} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card variant="outlined" sx={{ gridColumn: { md: '1 / -1' } }}>
-          <CardContent>
-            <Typography variant="subtitle1" gutterBottom>Top 10 Units by Rent PA</Typography>
+            <Typography variant="subtitle1" gutterBottom>Rent PA by Building (Top 12)</Typography>
             <ResponsiveContainer width="100%" height={360}>
-              <BarChart data={topByRent} layout="vertical" margin={{ left: 12, right: 24 }}>
+              <BarChart data={rentByBuilding} layout="vertical" margin={{ left: 12, right: 24 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
                 <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v) => `£${v / 1000}k`} />
                 <YAxis
@@ -181,11 +203,11 @@ export default function ChartsPage() {
                   dataKey="name"
                   tickLine={false}
                   axisLine={false}
-                  width={180}
+                  width={150}
                   interval={0}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 11 }}
                   tickFormatter={(name: string) =>
-                    name.length > 26 ? `${name.slice(0, 25)}…` : name
+                    name.length > 22 ? `${name.slice(0, 21)}…` : name
                   }
                 />
                 <Tooltip
@@ -193,7 +215,56 @@ export default function ChartsPage() {
                   formatter={(v) => gbp(Number(v))}
                   cursor={{ fill: 'rgba(0,0,0,0.04)' }}
                 />
-                <Bar dataKey="rent" name="Rent PA" fill="#2563eb" radius={[0, 4, 4, 0]} animationDuration={900} />
+                <Legend />
+                <Bar dataKey="rent" name="Rent PA" fill="#2563eb" radius={[0, 4, 4, 0]} animationDuration={800} />
+                <Bar dataKey="erv" name={ervLabel} fill="#93c5fd" radius={[0, 4, 4, 0]} animationDuration={800} animationBegin={150} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="subtitle1">Vacancy Profile</Typography>
+            <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block' }}>
+              How long today&rsquo;s vacant units have been empty
+            </Typography>
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={vacancyAging}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={30} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                <Bar dataKey="count" name="Vacant units" fill="#f59e0b" radius={[4, 4, 0, 0]} animationDuration={800} />
+              </BarChart>
+            </ResponsiveContainer>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>
+              Largest vacant space by building (today)
+            </Typography>
+            {topVacantBuildings.map((b) => (
+              <Box key={b.name} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
+                <Typography variant="body2" noWrap sx={{ mr: 2 }}>{b.name}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {Math.round(b.sqft).toLocaleString()} sq ft
+                </Typography>
+              </Box>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="subtitle1" gutterBottom>Lease Expiries by Year</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={expiriesByYear}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                <XAxis dataKey="year" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+                />
+                <Bar dataKey="count" name="Units expiring" fill="#2563eb" radius={[4, 4, 0, 0]} animationDuration={800} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

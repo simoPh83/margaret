@@ -6,9 +6,19 @@ export interface UnitCell {
   sort_value?: string | number | null;
 }
 
+/** Subset of the raw unit record returned in row.metadata.raw_unit. */
+export interface RawUnit {
+  building_id?: number | null;
+  property_name?: string | null;
+  formatted_address?: string | null;
+  remarks?: string | null;
+  [key: string]: unknown;
+}
+
 export interface UnitRow {
   id?: string | number;
   cells?: Record<string, UnitCell>;
+  metadata?: { raw_unit?: RawUnit };
 }
 
 /** Shared fetch + shape-normalization for the units table. Cached by React Query. */
@@ -39,6 +49,31 @@ export function cellNumber(row: UnitRow, field: string): number {
 
 export function cellText(row: UnitRow, field: string): string {
   return row.cells?.[field]?.display ?? '';
+}
+
+/** Human-readable building name: property_name, falling back to the address cell. */
+export function buildingLabel(row: UnitRow): string {
+  const raw = row.metadata?.raw_unit;
+  return (
+    raw?.property_name ||
+    row.cells?.property?.display ||
+    raw?.formatted_address ||
+    (raw?.building_id != null ? `Building ${raw.building_id}` : 'Unknown building')
+  );
+}
+
+/** Street address of the building, stripping any leading-zero artifact (e.g. "001 …" → "1 …"). */
+export function buildingAddress(row: UnitRow): string {
+  const raw = row.metadata?.raw_unit;
+  const display = row.cells?.property?.display;
+  const address = raw?.formatted_address ?? '';
+  if (!address) return '';
+  const withoutZeros = address.replace(/^0+(?=\d)/, '');
+  // Prefer the API's cleaned display when it matches the same address.
+  if (display && withoutZeros.toLowerCase().startsWith(display.toLowerCase())) {
+    return address;
+  }
+  return withoutZeros;
 }
 
 /** Find a column's field name by fuzzy-matching its header (e.g. "Rent PA"). */
