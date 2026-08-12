@@ -15,10 +15,10 @@ github tag                      // push the tag to git hub
 
 
 git add .
-git commit -m "release v0.1.5"
+git commit -m "release v0.2.4"
 git push                    # push commits first
-git tag v0.1.5              # create tag locally
-git push origin v0.1.5      # push tag separately
+git tag v0.2.4              # create tag locally
+git push origin v0.2.4      # push tag separately
 
 
 
