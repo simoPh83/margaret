@@ -42,6 +42,17 @@ a {
   text-decoration: none;
 }
 
+/* Events timeline: count pills grow smoothly on hover (transform-origin at the
+   pill centre so it scales in place; the base translate() stays untouched). */
+.count-badge {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 150ms ease-out;
+}
+.count-badge:hover {
+  transform: scale(1.25);
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

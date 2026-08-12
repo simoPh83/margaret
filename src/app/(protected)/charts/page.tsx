@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -19,10 +19,7 @@ import {
   Legend,
   Pie,
   PieChart,
-  ReferenceLine,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Sector,
   Tooltip,
   XAxis,
@@ -57,15 +54,22 @@ const EVENT_COLORS = {
 
 type EventType = keyof typeof EVENT_COLORS
 
-interface TimelineEvent {
-  /** x position (epoch ms) */
-  x: number
-  /** lane key for the categorical y-axis */
-  lane: string
-  label: string
-  type: EventType
-  dateDisplay: string
+interface TimelineUnit {
+  unit: string
+  building: string
   tenant: string
+  dateDisplay: string
+}
+
+interface DayBucket {
+  /** Days from today (integer) */
+  x: number
+  lane: string
+  type: EventType
+  count: number
+  units: TimelineUnit[]
+  /** ISO date string for display */
+  dateDisplay: string
 }
 
 /** Period options in days; "-1" means show all. */
@@ -81,44 +85,156 @@ const DAY_START = new Date(new Date().toDateString()).getTime()
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** 'Oct 26' for short ranges, 'Oct 2026' for long ones. */
-function axisTick(ms: number, spanDays: number): string {
-  const d = new Date(ms)
-  const mon = MONTH_SHORT[d.getMonth()]
-  return spanDays <= 550 ? `${mon} ${String(d.getFullYear()).slice(2)}` : `${mon} ${d.getFullYear()}`
+/** Returns day-offset ticks: 0 = today, then each Monday, then month starts for long spans. */
+function buildTicks(maxDays: number): number[] {
+  const ticks: number[] = [0]
+  const today = new Date(DAY_START)
+  if (maxDays <= 150) {
+    const dow = today.getDay()
+    const toNextMonday = (8 - dow) % 7 || 7
+    for (let d = toNextMonday; d < maxDays; d += 7) ticks.push(d)
+  } else {
+    const step = maxDays > 550 ? 3 : 1
+    let cur = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+    while (true) {
+      const days = Math.round((cur.getTime() - DAY_START) / MS_PER_DAY)
+      if (days >= maxDays) break
+      ticks.push(days)
+      cur = new Date(cur.getFullYear(), cur.getMonth() + step, 1)
+    }
+  }
+  ticks.push(maxDays)
+  return ticks
 }
 
-/** Regular calendar ticks: month starts (quarter starts for spans over ~18 months). */
-function monthTicks(startMs: number, endMs: number): number[] {
-  const spanDays = (endMs - startMs) / MS_PER_DAY
-  const step = spanDays > 550 ? 3 : 1
-  const ticks: number[] = [startMs]
-  const d = new Date(startMs)
-  let cur = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
-  while (cur < endMs) {
-    ticks.push(cur)
-    cur = new Date(new Date(cur).getFullYear(), new Date(cur).getMonth() + step, 1).getTime()
-  }
-  ticks.push(endMs)
-  return ticks
+/** Format a day-offset tick label. */
+function axisTick(dayOffset: number, maxDays: number): string {
+  const d = new Date(DAY_START + dayOffset * MS_PER_DAY)
+  const mon = MONTH_SHORT[d.getMonth()]
+  if (maxDays <= 150) return `${d.getDate()} ${mon}`
+  return maxDays <= 550 ? `${mon} '${String(d.getFullYear()).slice(2)}` : `${mon} ${d.getFullYear()}`
 }
 
 /** Timeline dots are per-unit up to 1 year; wider windows get a monthly histogram. */
 const HISTOGRAM_THRESHOLD_DAYS = 365
 
-function EventTooltip({ active, payload }: { active?: boolean; payload?: { payload?: TimelineEvent }[] }) {
-  const d = payload?.[0]?.payload
-  if (!active || d == null) return null
-  const name = d.type === 'review' ? 'Rent Review' : d.type === 'break' ? 'Break Date' : 'Expiry Date'
-  const days = Math.ceil((d.x - DAY_START) / MS_PER_DAY)
+const EVENT_LABELS: Record<EventType, string> = {
+  review: 'Rent Review',
+  expiry: 'Expiry Date',
+  break: 'Break Date',
+}
+
+/** Count-badge tooltip content (pure React, not a recharts callback). */
+function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
+  const date = new Date(DAY_START + bucket.x * MS_PER_DAY)
+  const dateLabel = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   return (
-    <Box sx={{ bgcolor: 'white', border: '1px solid #e5e5e5', borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', p: 1.5 }}>
-      {d.tenant && <Typography variant="body2" sx={{ fontWeight: 700 }}>Tenant: {d.tenant}</Typography>}
-      <Typography variant="body2">{d.label}</Typography>
-      <Typography variant="body2">
-        {name}: {d.dateDisplay} ({days} days)
+    <Box sx={{ bgcolor: 'white', border: '1px solid #e5e5e5', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', p: 1.5, maxWidth: 340 }}>
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        {EVENT_LABELS[bucket.type]} · {dateLabel} ({bucket.x} days)
       </Typography>
+      <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2 }}>
+        {bucket.units.map((u, i) => (
+          <li key={i}>
+            <Typography variant="body2">
+              <strong>{u.unit}</strong> — {u.building}
+              {u.tenant ? ` · ${u.tenant}` : ''}
+            </Typography>
+          </li>
+        ))}
+      </Box>
     </Box>
+  )
+}
+
+/** Custom SVG timeline — avoids recharts axis bugs entirely. */
+function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDays: number; ticks: number[] }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(600)
+  const [hovered, setHovered] = useState<{ bucket: DayBucket; px: number; py: number } | null>(null)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const update = () => setWidth(el.offsetWidth || 600)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const ML = 110, MR = 24, MT = 20, MB = 32
+  const ROW_H = 60
+  const LANES = [EVENT_LABELS.review, EVENT_LABELS.expiry, EVENT_LABELS.break] as const
+  const plotW = Math.max(width - ML - MR, 10)
+  const svgH = MT + LANES.length * ROW_H + MB
+
+  const xPx = (d: number) => ML + (d / maxDays) * plotW
+  const laneY = (lane: string) => {
+    const i = LANES.indexOf(lane as typeof LANES[number])
+    return MT + (i === -1 ? 0 : i + 0.5) * ROW_H
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <svg width={width} height={svgH} style={{ display: 'block', overflow: 'visible' }}>
+        {/* Vertical gridlines */}
+        {ticks.map((t) => (
+          <line key={t} x1={xPx(t)} y1={MT} x2={xPx(t)} y2={MT + LANES.length * ROW_H}
+            stroke="#e5e5e5" strokeDasharray="3 3" />
+        ))}
+        {/* Today line */}
+        <line x1={xPx(0)} y1={MT} x2={xPx(0)} y2={MT + LANES.length * ROW_H} stroke="#374151" strokeWidth={1.5} />
+        <text x={xPx(0) + 4} y={MT + 11} fontSize={11} fill="#374151">Today</text>
+        {/* Horizontal lane separators */}
+        {LANES.map((_, i) => (
+          <line key={i} x1={ML} y1={MT + i * ROW_H} x2={ML + plotW} y2={MT + i * ROW_H} stroke="#f0f0f0" />
+        ))}
+        {/* Y axis labels */}
+        {LANES.map((lane, i) => (
+          <text key={lane} x={ML - 8} y={MT + (i + 0.5) * ROW_H + 4}
+            textAnchor="end" fontSize={12} fill="#374151">{lane}</text>
+        ))}
+        {/* X axis tick labels */}
+        {ticks.map((t) => (
+          <text key={t} x={xPx(t)} y={MT + LANES.length * ROW_H + 18}
+            textAnchor="middle" fontSize={11} fill="#6b7280">
+            {axisTick(t, maxDays)}
+          </text>
+        ))}
+        {/* Count pills */}
+        {events.map((bucket, i) => {
+          const cx = xPx(bucket.x)
+          const cy = laneY(bucket.lane)
+          const color = EVENT_COLORS[bucket.type]
+          const W = 30, H = 20
+          return (
+            <g key={i} className="count-badge" style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setHovered({ bucket, px: cx, py: cy })}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <rect x={cx - W / 2} y={cy - H / 2} width={W} height={H} rx={10}
+                fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} />
+              <text x={cx} y={cy + 4} textAnchor="middle" fontSize={12} fontWeight={700} fill={color}>
+                {bucket.count}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+      {hovered && (
+        <div style={{
+          position: 'absolute',
+          left: hovered.px,
+          top: hovered.py - 10,
+          transform: 'translate(-50%, -100%)',
+          pointerEvents: 'none',
+          zIndex: 10,
+        }}>
+          <EventTooltipContent bucket={hovered.bucket} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -244,12 +360,16 @@ export default function ChartsPage() {
 
   const totalSqft = rows.reduce((s, r) => s + cellNumber(r, 'sq_ft'), 0)
 
-  // Every future event (rent review / break / expiry) per unit, as timeline dots.
+  // Future events grouped by (day-offset, type) — x is integer days from today.
   const timeline = useMemo(() => {
-    const events: { x: number; label: string; type: EventType; dateDisplay: string; tenant: string }[] = []
+    const buckets = new Map<string, DayBucket>()
     for (const row of rows) {
-      const label = `${cellText(row, 'unit_name')} - ${buildingLabel(row)}`
-      const tenant = cellText(row, 'tenant')
+      const unit: TimelineUnit = {
+        unit: cellText(row, 'unit_name'),
+        building: buildingLabel(row),
+        tenant: cellText(row, 'tenant'),
+        dateDisplay: '',
+      }
       for (const [type, field] of [
         ['review', 'rent_review_date'],
         ['break', 'break_date'],
@@ -257,45 +377,36 @@ export default function ChartsPage() {
       ] as [EventType, string][]) {
         const iso = row.cells?.[field]?.sort_value
         if (typeof iso !== 'string' || !iso) continue
-        const x = new Date(iso).getTime()
-        if (!Number.isFinite(x) || x < DAY_START) continue
-        events.push({ x, label, type, dateDisplay: cellText(row, field) || iso, tenant })
+        const parts = iso.slice(0, 10).split('-').map(Number)
+        if (parts.length < 3 || !parts[0]) continue
+        const eventMs = new Date(parts[0], parts[1] - 1, parts[2]).getTime()
+        const x = Math.round((eventMs - DAY_START) / MS_PER_DAY)
+        if (x < 0) continue
+        const key = `${type}:${x}`
+        const bucket = buckets.get(key) ?? { x, lane: EVENT_LABELS[type], type, count: 0, units: [], dateDisplay: cellText(row, field) || iso }
+        bucket.count += 1
+        bucket.units.push({ ...unit, dateDisplay: cellText(row, field) || iso })
+        buckets.set(key, bucket)
       }
     }
-    return events
+    return [...buckets.values()]
   }, [rows])
 
-  const { timelineEvents, laneLabels, xMax, xTicks } = useMemo(() => {
-    const windowEnd =
-      periodDays === -1 ? Infinity : DAY_START + periodDays * MS_PER_DAY
-    const visible = timeline.filter((e) => e.x <= windowEnd)
-    // Lanes ordered by each unit's soonest visible event; soonest first.
-    const firstEvent = new Map<string, number>()
-    for (const e of visible) {
-      const prev = firstEvent.get(e.label)
-      if (prev === undefined || e.x < prev) firstEvent.set(e.label, e.x)
-    }
-    const lanes = [...firstEvent.entries()].sort((a, b) => a[1] - b[1]).map(([label]) => label)
-    const events: TimelineEvent[] = visible.map((e) => ({ ...e, lane: e.label }))
-    const latest = events.reduce((m, e) => Math.max(m, e.x), DAY_START + MS_PER_DAY)
-    return {
-      timelineEvents: events,
-      laneLabels: lanes,
-      xMax: latest,
-      xTicks: monthTicks(DAY_START, latest),
-    }
+  const { timelineEvents, xMax, xTicks } = useMemo(() => {
+    const events = periodDays === -1 ? timeline : timeline.filter((e) => e.x <= periodDays)
+    const max = events.reduce((m, e) => Math.max(m, e.x), 1)
+    return { timelineEvents: events, xMax: max, xTicks: buildTicks(max) }
   }, [timeline, periodDays])
 
   // Beyond the lane-chart threshold, aggregate events per calendar month instead.
   const showHistogram = periodDays === -1 || periodDays > HISTOGRAM_THRESHOLD_DAYS
 
   const monthlyCounts = useMemo(() => {
-    const windowEnd =
-      periodDays === -1 ? Infinity : DAY_START + periodDays * MS_PER_DAY
+    const windowEnd = periodDays === -1 ? Infinity : periodDays
     const buckets = new Map<string, { sortKey: number; review: number; expiry: number; break: number }>()
     for (const e of timeline) {
       if (e.x > windowEnd) continue
-      const d = new Date(e.x)
+      const d = new Date(DAY_START + e.x * MS_PER_DAY)
       const key = `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`
       const sortKey = d.getFullYear() * 12 + d.getMonth()
       const bucket = buckets.get(key) ?? { sortKey, review: 0, expiry: 0, break: 0 }
@@ -318,97 +429,6 @@ export default function ChartsPage() {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom>Charts</Typography>
-
-      <Card variant="outlined" sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="subtitle1">Upcoming Events Timeline</Typography>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="events-period-label">Show events within</InputLabel>
-              <Select
-                labelId="events-period-label"
-                label="Show events within"
-                value={periodDays}
-                onChange={(e) => setPeriodDays(Number(e.target.value))}
-              >
-                {PERIODS.map((p) => (
-                  <MenuItem key={p.label} value={p.days}>{p.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-          {timelineEvents.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-              No events in the selected period.
-            </Typography>
-          ) : showHistogram ? (
-            <>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={monthlyCounts} margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={36} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-                  <Bar dataKey="review" name="Rent Review" stackId="events" fill={EVENT_COLORS.review} animationDuration={600} />
-                  <Bar dataKey="expiry" name="Expiry Date" stackId="events" fill={EVENT_COLORS.expiry} animationDuration={600} />
-                  <Bar dataKey="break" name="Break Date" stackId="events" fill={EVENT_COLORS.break} radius={[4, 4, 0, 0]} animationDuration={600} />
-                </BarChart>
-              </ResponsiveContainer>
-              <EventLegend squares />
-            </>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={Math.max(260, laneLabels.length * 30 + 80)}>
-                <ScatterChart margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical stroke="#e5e5e5" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    dataKey="x"
-                    domain={[DAY_START, xMax]}
-                    scale="time"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11 }}
-                    ticks={xTicks}
-                    tickFormatter={(ms: number) =>
-                      axisTick(ms, (xMax - DAY_START) / MS_PER_DAY)
-                    }
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="lane"
-                    tickLine={false}
-                    axisLine={false}
-                    width={240}
-                    interval={0}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(label: string) =>
-                      label.length > 34 ? `${label.slice(0, 33)}…` : label
-                    }
-                  />
-                  <Tooltip content={<EventTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                  <ReferenceLine
-                    x={DAY_START}
-                    stroke="#1f2937"
-                    strokeWidth={1.5}
-                    label={{ value: 'Today', position: 'insideTopRight', fontSize: 11, fill: '#1f2937' }}
-                  />
-                  {(['review', 'expiry', 'break'] as EventType[]).map((t) => (
-                    <Scatter
-                      key={t}
-                      data={timelineEvents.filter((e) => e.type === t)}
-                      fill={EVENT_COLORS[t]}
-                      shape="circle"
-                      isAnimationActive={false}
-                    />
-                  ))}
-                </ScatterChart>
-              </ResponsiveContainer>
-              <EventLegend />
-            </>
-          )}
-        </CardContent>
-      </Card>
 
       <Box
         sx={{
@@ -536,6 +556,52 @@ export default function ChartsPage() {
           </CardContent>
         </Card>
       </Box>
+
+      <Card variant="outlined" sx={{ mt: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="subtitle1">Upcoming Events Timeline</Typography>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel id="events-period-label">Show events within</InputLabel>
+              <Select
+                labelId="events-period-label"
+                label="Show events within"
+                value={periodDays}
+                onChange={(e) => setPeriodDays(Number(e.target.value))}
+              >
+                {PERIODS.map((p) => (
+                  <MenuItem key={p.label} value={p.days}>{p.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          {timelineEvents.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+              No events in the selected period.
+            </Typography>
+          ) : showHistogram ? (
+            <>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={monthlyCounts} margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={36} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                  <Bar dataKey="review" name="Rent Review" stackId="events" fill={EVENT_COLORS.review} animationDuration={600} />
+                  <Bar dataKey="expiry" name="Expiry Date" stackId="events" fill={EVENT_COLORS.expiry} animationDuration={600} />
+                  <Bar dataKey="break" name="Break Date" stackId="events" fill={EVENT_COLORS.break} radius={[4, 4, 0, 0]} animationDuration={600} />
+                </BarChart>
+              </ResponsiveContainer>
+              <EventLegend squares />
+            </>
+          ) : (
+            <>
+              <TimelinePanel events={timelineEvents} maxDays={xMax} ticks={xTicks} />
+              <EventLegend />
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {!isLoading && rows.length > 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
