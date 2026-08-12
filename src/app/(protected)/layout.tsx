@@ -24,7 +24,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    checkForUpdate().then(setUpdate).catch(() => {})
+    checkForUpdate().then(setUpdate).catch((err) => {
+      // Already reported to Sentry inside checkForUpdate — just log locally.
+      console.error('Update check failed:', err)
+    })
   }, [])
 
   useEffect(() => {
@@ -68,7 +71,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           </Button>
           {update && (
             <Button variant="contained" size="small" color="warning" onClick={() =>
-              update.install().catch(() => openExternal(update.manualUrl))
+              update.install().catch((err) => {
+                // Already reported to Sentry inside install() — fall back to manual download.
+                console.error('Update install failed:', err)
+                openExternal(update.manualUrl)
+              })
             }>
               Update to {update.version} ↗
             </Button>
