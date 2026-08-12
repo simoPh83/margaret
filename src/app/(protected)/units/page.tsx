@@ -13,6 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import { GridPagination } from '@mui/x-data-grid'
 import { buildingAddress, cellNumber, cellText, useUnits, UnitRow } from '@/lib/units'
 
 /** Fallback status tints; the API also ships a color per status in cell metadata. */
@@ -98,6 +99,176 @@ function VarianceBar({ value }: { value: number }) {
 
 type ApiColumn = { field: string; headerName: string }
 
+/** Numeric fields that get a total in the footer bar. */
+const TOTAL_NUMERIC_FIELDS = ['sq_ft', 'rent', 'erv', 'variance']
+
+/** Status value used to identify let units for the ERV variation total. */
+const LET_STATUS = 'let'
+
+/** Parse a cell's numeric value (sort_value first, then display text). Null when empty/non-numeric. */
+function cellNumberOrNull(row: UnitRow, field: string): number | null {
+  const cell = row.cells?.[field]
+  if (!cell) return null
+  if (typeof cell.sort_value === 'number') return cell.sort_value
+  const raw = String(cell.sort_value ?? cell.display ?? '').trim()
+  if (!raw) return null
+  const n = parseFloat(raw.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+/** Format a footer total like the cells do: £ for money, thousands separators, ±x.x% for variance. */
+function formatTotal(field: string, total: number): string {
+  const sign = total < 0 ? '−' : ''
+  const abs = Math.abs(total)
+  if (field === 'rent' || field === 'erv') return `${sign}£${Math.round(abs).toLocaleString('en-GB')}`
+  if (field === 'variance') return `${total >= 0 ? '+' : '−'}${abs.toFixed(1)}%`
+  if (field === 'sq_ft') return Math.round(abs).toLocaleString('en-GB')
+  return abs.toLocaleString('en-GB')
+}
+
+interface TableTotals {
+  properties: number
+  units: number
+  numeric: Record<string, number | null>
+}
+
+/** Totals over ALL rows of the table — pagination and filters do not affect them. */
+function computeTotals(
+  rows: UnitRow[],
+  fields: string[],
+  { includeVariance = true }: { includeVariance?: boolean } = {}
+): TableTotals {
+  const numeric: Record<string, number | null> = {}
+  for (const field of fields) {
+    if (!TOTAL_NUMERIC_FIELDS.includes(field)) continue
+    if (field === 'variance' && !includeVariance) continue
+    let sum = 0
+    let hasValue = false
+    // ERV variation: sq-ft-weighted average over LET units only — vacant
+    // units carry variance = 0 (no passing rent to compare). The API also
+    // uses -999 as a "no data" sentinel (same rule as VarianceBar), which
+    // must be excluded or it poisons the average.
+    let weightedSum = 0
+    let totalWeight = 0
+    for (const row of rows) {
+      const n = cellNumberOrNull(row, field)
+      if (n === null) continue
+      if (field === 'variance') {
+        if (n <= -999) continue
+        if (cellText(row, 'status').toLowerCase() !== LET_STATUS) continue
+        const weight = cellNumberOrNull(row, 'sq_ft')
+        if (weight !== null && weight > 0) {
+          weightedSum += n * weight
+          totalWeight += weight
+        }
+      } else {
+        sum += n
+      }
+      hasValue = true
+    }
+    if (field === 'variance') {
+      numeric[field] = totalWeight > 0 ? weightedSum / totalWeight : null
+    } else {
+      numeric[field] = hasValue ? sum : null
+    }
+  }
+  // Count single properties by building identity, falling back to the cell display.
+  const propertyKeys = new Set(
+    rows.map((row) => {
+      const raw = row.metadata?.raw_unit
+      return raw?.building_id != null ? `b${raw.building_id}` : cellText(row, 'property')
+    })
+  )
+  return { properties: propertyKeys.size, units: rows.length, numeric }
+}
+
+const TOTALS_LABELS: Record<string, string> = {
+  sq_ft: 'Sq Ft',
+  rent: 'Rent PA',
+  erv: 'ERV',
+  variance: 'ERV Var',
+}
+
+const TOTALS_TOOLTIPS: Record<string, string> = {
+  variance:
+    'Average ERV variation across let units only, weighted by square footage (larger units count more). Units without an ERV or rent are excluded.',
+}
+
+/**
+ * Totals summary content. Counts + numeric totals always cover ALL rows of the
+ * table, regardless of pagination.
+ */
+function TotalsSummary({ totals }: { totals: TableTotals }) {
+  const parts: React.ReactNode[] = [
+    <span key="p">{totals.properties} {totals.properties === 1 ? 'property' : 'properties'}</span>,
+    <span key="u">{totals.units} {totals.units === 1 ? 'unit' : 'units'}</span>,
+  ]
+  for (const field of TOTAL_NUMERIC_FIELDS) {
+    const total = totals.numeric[field]
+    if (total !== null && total !== undefined) {
+      const content = <span>{TOTALS_LABELS[field]} {formatTotal(field, total)}</span>
+      const tooltip = TOTALS_TOOLTIPS[field]
+      parts.push(
+        tooltip ? (
+          <Tooltip
+            key={field}
+            title={tooltip}
+            arrow
+            slotProps={{ tooltip: { sx: { fontSize: '0.95rem' } } }}
+          >
+            <Box component="span" sx={{ cursor: 'help', textDecoration: 'underline dotted rgba(0,0,0,0.35)', textUnderlineOffset: 3 }}>
+              {content}
+            </Box>
+          </Tooltip>
+        ) : (
+          <span key={field}>{content}</span>
+        )
+      )
+    }
+  }
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 1,
+        fontSize: '0.8125rem',
+        fontWeight: 600,
+        fontVariantNumeric: 'tabular-nums',
+        '& > span:not(:last-child)::after': { content: '"·"', ml: 1, color: 'text.disabled' },
+      }}
+    >
+      {parts}
+    </Box>
+  )
+}
+
+/**
+ * Custom grid footer: totals on the left, pagination on the right, one line.
+ * Rendered via the grid's `footer` slot, so it is always frozen at the bottom.
+ * GridPagination handles its own state via the grid context.
+ */
+function TableFooter({ totals }: { totals: TableTotals }) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        columnGap: 2,
+        width: '100%',
+        pl: 2,
+      }}
+    >
+      <TotalsSummary totals={totals} />
+      <GridPagination />
+    </Box>
+  )
+}
+
 /** Fields shown in every by-state table. */
 const SHARED_FIELDS = ['property', 'unit_name', 'sq_ft', 'type', 'erv', 'vacant_since']
 
@@ -121,6 +292,7 @@ interface StateTable extends StateSection {
   rows: UnitRow[]
   columns: GridColDef[]
   color: string
+  totals: TableTotals
 }
 
 /**
@@ -199,6 +371,7 @@ export default function UnitsPage() {
   const [view, setView] = useState<'classic' | 'state'>('classic')
 
   const columns = useMemo(() => buildColumns(data?.columns ?? []), [data?.columns])
+  const totals = useMemo(() => computeTotals(rows, columns.map((c) => c.field)), [rows, columns])
 
   const stateTables = useMemo<StateTable[]>(() => {
     const allColumns = data?.columns ?? []
@@ -207,13 +380,18 @@ export default function UnitsPage() {
         section.statuses.some((s) => s.toLowerCase() === cellText(row, 'status').toLowerCase())
       )
       const isLet = section.key === 'let'
+      const sectionColumns = isLet
+        ? buildColumns(allColumns, undefined, ['id', 'vacant_since'])
+        : buildColumns(allColumns, SHARED_FIELDS)
       return {
         ...section,
         rows: sectionRows,
         // LET: same fields as the classic table except "Vacant Since"; others: shared fields only
-        columns: isLet
-          ? buildColumns(allColumns, undefined, ['id', 'vacant_since'])
-          : buildColumns(allColumns, SHARED_FIELDS),
+        columns: sectionColumns,
+        // The ERV variation total is only meaningful where let units exist.
+        totals: computeTotals(sectionRows, sectionColumns.map((c) => c.field), {
+          includeVariance: isLet,
+        }),
         color:
           (sectionRows[0] && statusColor(sectionRows[0])) ||
           STATUS_COLORS[section.statuses[0]] ||
@@ -252,14 +430,18 @@ export default function UnitsPage() {
           rows={rows as GridValidRowModel[]}
           columns={columns}
           loading={isLoading}
-          autoHeight
           pageSizeOptions={[25, 50, 100]}
           initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           getRowHeight={() => 'auto'}
           getRowClassName={(params) =>
             params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
           }
+          slots={{ footer: () => <TableFooter totals={totals} /> }}
+          // Fixed height (not autoHeight): the grid fills the window below the
+          // app bar/tabs/page header (~240px) and scrolls internally, so the
+          // column headers and pagination footer always stay visible.
           sx={{
+            height: 'calc(100dvh - 240px)',
             '& .MuiDataGrid-cell': { py: 1 },
             '& .MuiDataGrid-row.has-remarks .MuiDataGrid-cell[data-field="unit_name"]': {
               cursor: 'help',
@@ -419,15 +601,11 @@ function StateTableCard({
           <DataGrid
             rows={table.rows as GridValidRowModel[]}
             columns={table.columns}
-            autoHeight
-            pageSizeOptions={[10, 25, 50]}
-            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-            hideFooter={table.rows.length <= 25}
-            getRowHeight={() => 'auto'}
-            getRowClassName={(params) =>
-              params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
-            }
+            // Fixed height for every table: rows scroll internally and the
+            // column headers stay pinned. (maxHeight would give short tables
+            // no intrinsic height — the grid collapses to 0px.)
             sx={{
+              height: 'calc(100dvh - 280px)',
               border: 'none',
               '& .MuiDataGrid-cell': { py: 1 },
               '& .MuiDataGrid-row.has-remarks .MuiDataGrid-cell[data-field="unit_name"]': {
@@ -436,6 +614,13 @@ function StateTableCard({
                 textUnderlineOffset: 3,
               },
             }}
+            pageSizeOptions={[10, 25, 50]}
+            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+            getRowHeight={() => 'auto'}
+            getRowClassName={(params) =>
+              params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
+            }
+            slots={{ footer: () => <TableFooter totals={table.totals} /> }}
           />
         </Box>
       </Collapse>
