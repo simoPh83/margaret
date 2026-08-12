@@ -4,6 +4,8 @@ import { apiFetch } from './api';
 export interface UnitCell {
   display: string;
   sort_value?: string | number | null;
+  /** Cell metadata shipped by the API (e.g. widget_spec.color for status cells). */
+  metadata?: { widget_spec?: { color?: string } };
 }
 
 /** Subset of the raw unit record returned in row.metadata.raw_unit. */
