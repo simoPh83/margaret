@@ -56,7 +56,12 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <AppBar position="static" color="default" elevation={1}>
+      <AppBar
+        position="static"
+        color="default"
+        elevation={1}
+        sx={{ bgcolor: 'background.paper', color: 'text.primary', backgroundImage: 'none', borderBottom: '1px solid', borderColor: 'divider' }}
+      >
         <Toolbar sx={{ gap: 2 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
             Margaret App{version && ` v${version}`}
