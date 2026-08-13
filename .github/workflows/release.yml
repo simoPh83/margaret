@@ -10,8 +10,24 @@ permissions:
   contents: write
 
 jobs:
+  # ── Clean slate: remove any stale draft release from a previous run ─────────
+  # Runs ONCE before the build matrix so that (a) reruns are idempotent and
+  # (b) tauri-action never has to overwrite existing assets, which was failing
+  # intermittently with a GitHub Server Error. Doing it inside the build matrix
+  # is unsafe: one platform's cleanup could delete another's already-uploaded
+  # assets because matrix jobs start at different times.
+  cleanup:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete existing draft release (if any)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete "${{ github.ref_name }}" --yes --cleanup-tag=false || true
+
   # ── Build on each platform ──────────────────────────────────────────────────
   build:
+    needs: cleanup
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +58,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           targets: ${{ matrix.rust-target }}
 
       - name: Rust build cache
