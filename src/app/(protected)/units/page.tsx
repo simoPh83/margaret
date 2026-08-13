@@ -8,6 +8,7 @@ import {
   Collapse,
   IconButton,
   Paper,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -132,6 +133,24 @@ function VarianceBar({ value }: { value: number }) {
 }
 
 type ApiColumn = { field: string; headerName: string }
+
+/**
+ * Case-insensitive substring match across every cell's display text, plus the
+ * property name, address and remarks carried in row metadata (not all of which
+ * are rendered as columns).
+ */
+function rowMatchesSearch(row: UnitRow, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const raw = row.metadata?.raw_unit
+  const haystack = [
+    ...Object.values(row.cells ?? {}).map((c) => c.display),
+    raw?.property_name,
+    raw?.formatted_address,
+    raw?.remarks,
+  ]
+  return haystack.some((v) => typeof v === 'string' && v.toLowerCase().includes(q))
+}
 
 /** Numeric fields that get a total in the footer bar. */
 const TOTAL_NUMERIC_FIELDS = ['sq_ft', 'rent', 'erv', 'variance']
@@ -415,14 +434,22 @@ export default function UnitsPage() {
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const raw = data?.raw
   const [view, setView] = useState<'classic' | 'state'>('classic')
+  const [search, setSearch] = useState('')
+
+  // Filter the FULL dataset before the grid paginates, so matches are found in
+  // records on any page. Totals and the by-state tables follow the filter too.
+  const filteredRows = useMemo(
+    () => (search.trim() ? rows.filter((row) => rowMatchesSearch(row, search)) : rows),
+    [rows, search]
+  )
 
   const columns = useMemo(() => buildColumns(data?.columns ?? []), [data?.columns])
-  const totals = useMemo(() => computeTotals(rows, columns.map((c) => c.field)), [rows, columns])
+  const totals = useMemo(() => computeTotals(filteredRows, columns.map((c) => c.field)), [filteredRows, columns])
 
   const stateTables = useMemo<StateTable[]>(() => {
     const allColumns = data?.columns ?? []
     return STATE_SECTIONS.map((section) => {
-      const sectionRows = rows.filter((row) =>
+      const sectionRows = filteredRows.filter((row) =>
         section.statuses.some((s) => s.toLowerCase() === cellText(row, 'status').toLowerCase())
       )
       const isLet = section.key === 'let'
@@ -444,21 +471,30 @@ export default function UnitsPage() {
           theme.palette.grey[500],
       }
     })
-  }, [data?.columns, rows, theme])
+  }, [data?.columns, filteredRows, theme])
 
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 1 }}>
         <Typography variant="h5">Units</Typography>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={view}
-          onChange={(_e, value) => value && setView(value)}
-        >
-          <ToggleButton value="classic">Classic view</ToggleButton>
-          <ToggleButton value="state">By state</ToggleButton>
-        </ToggleButtonGroup>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ minWidth: 240 }}
+          />
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={view}
+            onChange={(_e, value) => value && setView(value)}
+          >
+            <ToggleButton value="classic">Classic view</ToggleButton>
+            <ToggleButton value="state">By state</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
       </Box>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -485,7 +521,7 @@ export default function UnitsPage() {
       )}
       {rows.length > 0 && view === 'classic' && (
         <DataGrid
-          rows={rows as GridValidRowModel[]}
+          rows={filteredRows as GridValidRowModel[]}
           columns={columns}
           loading={isLoading}
           pageSizeOptions={[25, 50, 100]}
