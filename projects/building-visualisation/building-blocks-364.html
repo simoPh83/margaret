@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Portland House — building blocks prototype</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #fafafa;
+    display: flex;
+    gap: 48px;
+    padding: 40px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  .legend { font-size: 12px; }
+  .legend .swatch {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #333; border-radius: 3px;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  .legend li { margin-bottom: 6px; list-style: none; }
+  .legend ul { padding: 0; }
+</style>
+</head>
+<body>
+
+<div>
+  <h1>Portland House</h1>
+  <div class="subtitle">building 364 · widths ∝ sq ft · data from Supabase, 2026-08-13</div>
+  <svg id="drawing" width="900" height="560" role="img" aria-label="Building block diagram"></svg>
+</div>
+
+<div class="legend">
+  <h1>Legend</h1>
+  <div class="subtitle">status colours</div>
+  <ul id="legend"></ul>
+  <p style="max-width: 260px; color: #666;">
+    "GF &amp; Bsmnt (E) &amp; Vaults" is one commercial unit (Futuremaxx, 5,667 sq ft)
+    but two physical blocks — Ground Floor (East) and Basement (East) — drawn with the
+    name repeated. This is the unit↔block decoupling in the migration plan.<br><br>
+    Zero-area spaces not drawn (notes only): "Cupboards 2nd–6th Floors" (vacant) and
+    "Transformer Chamber" (London Power Networks).<br><br>
+    Colours: tenanted blocks use tenant hues (yellows→oranges); non-let blocks use
+    status colours — vacant: white, under offer: blue, under refurb: green,
+    mothballed: grey.
+  </p>
+</div>
+
+<script>
+// Physical blocks, not commercial units. sq_ft from unit_specs_history.
+// The "GF & Bsmnt (E) & Vaults" commercial unit (Futuremaxx, 5,667 sq ft) maps to
+// two blocks; the split is an estimate since the DB records only the combined area.
+const GF_E  = { name: 'Ground Floor (E)',      sqft: 2000, tenant: 'Futuremaxx Ltd' };
+const BST_E = { name: 'Basement (E) & Vaults', sqft: 3667, tenant: 'Futuremaxx Ltd' };
+
+const blocks = [
+  GF_E, BST_E,
+  { name: 'Basement (West)',      sqft: 2945, tenant: 'The London Cocktail Club Ltd' },
+  { name: 'Ground Floor',         sqft: 2103, tenant: 'Costa Ltd' },
+  { name: 'First Floor (West)',   sqft: 1784, tenant: 'Time & Tide Holdings (UK) Ltd' },
+  { name: 'First Floor (East)',   sqft: 2075, tenant: 'L52 Communications Ltd' },
+  { name: 'Second Floor (East)',  sqft: 2063, tenant: 'Tekcor4 Limited' },
+  { name: 'Second Floor (West)',  sqft: 1796, tenant: 'Angermann Goddard & Lloyd' },
+  { name: 'Third Floor (West)',   sqft: 1691, tenant: null, status: 'Vacant' },
+  { name: 'Third Floor (East)',   sqft: 2055, tenant: 'Media Campaign Limited' },
+  { name: 'Fourth Floor (West)',  sqft: 1548, tenant: 'Racoon Media Services Limited' },
+  { name: 'Fourth Floor (East)',  sqft: 1957, tenant: 'Racoon Media Services Limited' },
+  { name: 'Fifth Floor (East)',   sqft: 1845, tenant: 'Greek National Tourism Org.' },
+  { name: 'Fifth Floor (West)',   sqft: 1528, tenant: 'Rios Designs Ltd' },
+  { name: 'Sixth Floor (West)',   sqft: 1253, tenant: 'Directors Cut Films West Ltd' },
+  { name: 'Sixth Floor (East)',   sqft: 859,  tenant: 'Time & Tide Holdings (UK) Ltd' },
+];
+
+// Group into floors, bottom-up. E before W to match the 402 prototype.
+const floors = [
+  [BST_E, 'Basement (West)'],
+  [GF_E, 'Ground Floor'],
+  ['First Floor (East)', 'First Floor (West)'],
+  ['Second Floor (East)', 'Second Floor (West)'],
+  ['Third Floor (East)', 'Third Floor (West)'],
+  ['Fourth Floor (East)', 'Fourth Floor (West)'],
+  ['Fifth Floor (East)', 'Fifth Floor (West)'],
+  ['Sixth Floor (East)', 'Sixth Floor (West)'],
+].map(row => row.map(b => typeof b === 'string' ? blocks.find(u => u.name === b) : b));
+
+// Tenanted blocks: warm tenant hues in first-seen order (bottom floor up).
+// Non-let blocks: status colours.
+const palette = ['#fff9c4', '#ffecb3', '#ffe0b2', '#ffcc80', '#ffb74d', '#ffa726',
+                 '#ff9800', '#fb8c00', '#f57c00', '#ef6c00', '#e65100', '#ffccbc'];
+const STATUS_COLORS = {
+  vacant:            '#ffffff',
+  'under offer':     '#90caf9',
+  'under refurb':    '#a5d6a7',
+  mothballed:        '#bdbdbd',
+};
+const tenantColors = new Map();
+blocks.forEach(b => {
+  if (b.tenant && !tenantColors.has(b.tenant)) {
+    tenantColors.set(b.tenant, palette[tenantColors.size % palette.length]);
+  }
+});
+
+const MAX_W = 800, MIN_W = 64, ROW_H = 44, CX = 450, TOP = 20;
+const scale = MAX_W / Math.max(...blocks.map(b => b.sqft));
+
+const svg = document.getElementById('drawing');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+floors.forEach((blocks, i) => {
+  const widths = blocks.map(b => Math.max(b.sqft * scale, MIN_W));
+  const total = widths.reduce((a, b) => a + b, 0);
+  let x = CX - total / 2;
+  const y = TOP + (floors.length - 1 - i) * ROW_H;
+
+  blocks.forEach((b, j) => {
+    const w = widths[j];
+    const fill = b.tenant ? tenantColors.get(b.tenant)
+                          : (STATUS_COLORS[(b.status || 'vacant').toLowerCase()] || '#ffffff');
+    svg.appendChild(el('rect', {
+      x, y, width: w, height: ROW_H, fill,
+      stroke: '#333', 'stroke-width': 2, rx: 2,
+    }));
+
+    const label = b.tenant || b.status;
+    const t1 = el('text', {
+      x: x + w / 2, y: y + ROW_H / 2 - 6,
+      'text-anchor': 'middle', 'font-size': 10, 'font-weight': 600, fill: '#333',
+    });
+    t1.textContent = b.name;
+    const t2 = el('text', {
+      x: x + w / 2, y: y + ROW_H / 2 + 9,
+      'text-anchor': 'middle', 'font-size': 10, fill: '#222',
+    });
+    t2.textContent = w < 130 && label.length > 16 ? label.slice(0, 14) + '…' : label;
+    svg.appendChild(t1);
+    svg.appendChild(t2);
+
+    x += w;
+  });
+});
+
+// Legend
+const ul = document.getElementById('legend');
+tenantColors.forEach((color, tenant) => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="swatch" style="background:${color}"></span>${tenant}`;
+  ul.appendChild(li);
+});
+for (const [status, color] of Object.entries(STATUS_COLORS)) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="swatch" style="background:${color}"></span>${status[0].toUpperCase() + status.slice(1)}`;
+  ul.appendChild(li);
+}
+</script>
+
+</body>
+</html>

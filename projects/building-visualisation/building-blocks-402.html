@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>17-18 Margaret Street — building blocks prototype</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #fafafa;
+    display: flex;
+    gap: 48px;
+    padding: 40px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  .block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 2px solid #333;
+    border-radius: 3px;
+    height: 44px;
+    overflow: hidden;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 2px 4px;
+  }
+  .floor-row {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 0 auto;
+  }
+  .floor-row + .floor-row { margin-top: -2px; } /* shared borders */
+  .unit-name { font-weight: 600; display: block; font-size: 10px; color: #333; }
+  .legend { font-size: 12px; }
+  .legend .swatch {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #333; border-radius: 3px;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  .legend li { margin-bottom: 6px; list-style: none; }
+  .legend ul { padding: 0; }
+</style>
+</head>
+<body>
+
+<div>
+  <h1>17-18 Margaret Street</h1>
+  <div class="subtitle">building 402 · widths ∝ sq ft · data from Supabase, 2026-08-13</div>
+  <svg id="drawing" width="860" height="520" role="img" aria-label="Building block diagram"></svg>
+</div>
+
+<div class="legend">
+  <h1>Legend</h1>
+  <div class="subtitle">status colours</div>
+  <ul id="legend"></ul>
+  <p style="max-width: 260px; color: #666;">
+    Note: status_code 1 assumed "vacant" — no lookup table exists yet.
+    "R" (94 sq ft) floored at a minimum width so its label stays readable.
+  </p>
+</div>
+
+<script>
+// sq_ft from unit_specs_history (latest effective_from), tenants from active leases
+const units = [
+  { name: 'Basement',              sqft: 2481, tenant: 'Arrow International Media Ltd.' },
+  { name: 'Ground Floor (E)',      sqft: 1616, tenant: 'Arlettie London Ltd.' },
+  { name: 'Ground Floor (W)',      sqft: 1485, tenant: 'Yamaha Music Europe GMBH.' },
+  { name: 'First Floor',           sqft: 1855, tenant: 'Arrow International Media Ltd.' },
+  { name: 'Second Floor (E)',      sqft: 726,  tenant: 'Arrow International Media Ltd.' },
+  { name: 'Second Floor (W & N)',  sqft: 1220, tenant: 'Smiggle UK Limited' },
+  { name: 'Third Floor',           sqft: 1963, tenant: 'Arrow International Media Ltd.' },
+  { name: 'Fourth Floor (R)',      sqft: 94,   tenant: 'London Child & Family Therapy' },
+  { name: 'Fourth Floor (E)',      sqft: 619,  tenant: null, status: 'Vacant?' },
+  { name: 'Fourth Floor (W)',      sqft: 937,  tenant: 'Leap Productions Limited' },
+];
+
+// Group into floors, bottom-up
+const floors = [
+  ['Basement'],
+  ['Ground Floor (E)', 'Ground Floor (W)'],
+  ['First Floor'],
+  ['Second Floor (E)', 'Second Floor (W & N)'],
+  ['Third Floor'],
+  ['Fourth Floor (R)', 'Fourth Floor (E)', 'Fourth Floor (W)'],
+].map(row => row.map(n => units.find(u => u.name === n)));
+
+// Distinct colour per tenant; grey for non-let
+const palette = ['#a5d6a7', '#90caf9', '#ffcc80', '#ce93d8', '#fff59d', '#80cbc4'];
+const tenantColors = new Map();
+units.forEach(u => {
+  if (u.tenant && !tenantColors.has(u.tenant)) {
+    tenantColors.set(u.tenant, palette[tenantColors.size % palette.length]);
+  }
+});
+const VACANT = '#e0e0e0';
+
+const MAX_W = 800, MIN_W = 64, ROW_H = 48, CX = 430, TOP = 20;
+const scale = MAX_W / Math.max(...units.map(u => u.sqft));
+
+const svg = document.getElementById('drawing');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+floors.forEach((blocks, i) => {
+  const widths = blocks.map(b => Math.max(b.sqft * scale, MIN_W));
+  const total = widths.reduce((a, b) => a + b, 0);
+  let x = CX - total / 2;
+  const y = TOP + (floors.length - 1 - i) * ROW_H;
+
+  blocks.forEach((b, j) => {
+    const w = widths[j];
+    const fill = b.tenant ? tenantColors.get(b.tenant) : VACANT;
+    svg.appendChild(el('rect', {
+      x, y, width: w, height: ROW_H, fill,
+      stroke: '#333', 'stroke-width': 2, rx: 2,
+    }));
+
+    const label = b.tenant || b.status;
+    const t1 = el('text', {
+      x: x + w / 2, y: y + ROW_H / 2 - 6,
+      'text-anchor': 'middle', 'font-size': 10, 'font-weight': 600, fill: '#333',
+    });
+    t1.textContent = b.name;
+    const t2 = el('text', {
+      x: x + w / 2, y: y + ROW_H / 2 + 9,
+      'text-anchor': 'middle', 'font-size': 10, fill: '#222',
+    });
+    t2.textContent = w < 110 && label.length > 14 ? label.slice(0, 12) + '…' : label;
+    svg.appendChild(t1);
+    svg.appendChild(t2);
+
+    x += w;
+  });
+});
+
+// Legend
+const ul = document.getElementById('legend');
+tenantColors.forEach((color, tenant) => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="swatch" style="background:${color}"></span>${tenant}`;
+  ul.appendChild(li);
+});
+const li = document.createElement('li');
+li.innerHTML = `<span class="swatch" style="background:${VACANT}"></span>Not let (status)`;
+ul.appendChild(li);
+</script>
+
+</body>
+</html>

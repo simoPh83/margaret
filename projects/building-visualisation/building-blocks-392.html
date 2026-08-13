@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alexandra House — building blocks prototype</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    padding: 40px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  .legend { font-size: 12px; margin-top: 32px; }
+  .legend .swatch {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #333; border-radius: 3px;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  .legend li { margin-bottom: 6px; list-style: none; }
+  .legend ul { padding: 0; columns: 3; }
+</style>
+</head>
+<body>
+
+<div>
+  <h1>Alexandra House</h1>
+  <div class="subtitle">building 392 · widths ∝ sq ft · data from Supabase, 2026-08-13</div>
+  <svg id="drawing" role="img" aria-label="Building block diagram"></svg>
+</div>
+
+<div class="legend">
+  <h1>Legend</h1>
+  <div class="subtitle">tenant hues &amp; status colours</div>
+  <ul id="legend"></ul>
+  <p style="max-width: 720px; color: #666;">
+    Two commercial units, both multi-floor:<br>
+    · "Ground Floor &amp; Part Basement" (Burger &amp; Lobster, 4,430 sq ft total)
+    → Ground 3,000 + Part Basement 1,430 (placeholder split)<br>
+    · "First to Fourth Floors" (Exposure Promotions, 10,421 sq ft total)
+    → 2,605 per floor (placeholder split)<br><br>
+    Per your assumption, per-floor sq ft will be available in the new model —
+    these splits are placeholders to show the intended rendering.
+  </p>
+</div>
+
+<script>
+// Physical blocks with assumed per-floor sq ft (placeholder splits, since the DB
+// records only combined unit areas today).
+const stacks = [
+  {
+    label: 'Alexandra House',
+    floors: [
+      [{ name: 'Part Basement', sqft: 1430, tenant: 'Burger & Lobster Restaurant Group Ltd.' }],
+      [{ name: 'Ground Floor',  sqft: 3000, tenant: 'Burger & Lobster Restaurant Group Ltd.' }],
+      [{ name: 'First Floor',   sqft: 2605, tenant: 'Exposure Promotions Ltd.' }],
+      [{ name: 'Second Floor',  sqft: 2605, tenant: 'Exposure Promotions Ltd.' }],
+      [{ name: 'Third Floor',   sqft: 2605, tenant: 'Exposure Promotions Ltd.' }],
+      [{ name: 'Fourth Floor',  sqft: 2605, tenant: 'Exposure Promotions Ltd.' }],
+    ],
+  },
+];
+
+// Tenanted blocks: warm tenant hues in first-seen order (bottom floor up).
+const palette = ['#fff9c4', '#ffecb3', '#ffe0b2', '#ffcc80', '#ffb74d', '#ffa726',
+                 '#ff9800', '#fb8c00', '#f57c00', '#ef6c00', '#e65100', '#ffccbc'];
+const STATUS_COLORS = {
+  vacant:         '#ffffff',
+  'under offer':  '#90caf9',
+  'under refurb': '#a5d6a7',
+  mothballed:     '#bdbdbd',
+};
+const tenantColors = new Map();
+stacks.forEach(s => s.floors.forEach(f => f.forEach(b => {
+  if (b.tenant && !tenantColors.has(b.tenant)) {
+    tenantColors.set(b.tenant, palette[tenantColors.size % palette.length]);
+  }
+})));
+
+const MAX_W = 560, MIN_W = 52, ROW_H = 48, TOP = 40, GAP = 60;
+const allBlocks = stacks.flatMap(s => s.floors.flat());
+const scale = MAX_W / Math.max(...allBlocks.map(b => b.sqft));
+
+const svg = document.getElementById('drawing');
+const maxFloors = Math.max(...stacks.map(s => s.floors.length));
+svg.setAttribute('width', stacks.length * (MAX_W + 40) + (stacks.length + 1) * GAP);
+svg.setAttribute('height', TOP + maxFloors * ROW_H + 20);
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function text(x, y, content, attrs = {}) {
+  const t = el('text', { x, y, 'text-anchor': 'middle', 'font-size': 10, fill: '#222', ...attrs });
+  t.textContent = content;
+  return t;
+}
+
+let stackX = GAP;
+
+stacks.forEach(stack => {
+  const stackW = MAX_W + 40;
+  const cx = stackX + stackW / 2;
+
+  // stack label
+  svg.appendChild(text(cx, 20, stack.label, { 'font-weight': 700, 'font-size': 12 }));
+
+  stack.floors.forEach((blocks, i) => {
+    const widths = blocks.map(b => Math.max(b.sqft * scale, MIN_W));
+    const total = widths.reduce((a, b) => a + b, 0);
+    let x = cx - total / 2;
+    const y = TOP + (maxFloors - 1 - i) * ROW_H;
+
+    blocks.forEach((b, j) => {
+      const w = widths[j];
+      const fill = b.tenant ? tenantColors.get(b.tenant)
+                            : (STATUS_COLORS[(b.status || 'vacant').toLowerCase()] || '#ffffff');
+      svg.appendChild(el('rect', {
+        x, y, width: w, height: ROW_H, fill,
+        stroke: '#333', 'stroke-width': 2, rx: 2,
+      }));
+
+      const label = b.tenant || b.status;
+      svg.appendChild(text(x + w / 2, y + ROW_H / 2 - 6, b.name,
+        { 'font-weight': 600, 'font-size': 9, fill: '#333' }));
+      svg.appendChild(text(x + w / 2, y + ROW_H / 2 + 9,
+        w < 110 && label.length > 13 ? label.slice(0, 11) + '…' : label,
+        { 'font-size': 9 }));
+
+      x += w;
+    });
+  });
+
+  stackX += stackW + GAP;
+});
+
+// Legend
+const ul = document.getElementById('legend');
+tenantColors.forEach((color, tenant) => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="swatch" style="background:${color}"></span>${tenant}`;
+  ul.appendChild(li);
+});
+for (const [status, color] of Object.entries(STATUS_COLORS)) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="swatch" style="background:${color}"></span>${status[0].toUpperCase() + status.slice(1)}`;
+  ul.appendChild(li);
+}
+</script>
+
+</body>
+</html>
