@@ -7,7 +7,7 @@ Internal property management tool. This is a new standalone frontend repository.
 ## Stack
 
 | Layer | Choice |
-|---|---|
+| --- | --- |
 | Framework | Next.js (App Router) + TypeScript |
 | Data fetching / caching | TanStack Query |
 | Table logic | TanStack Table (headless) |
@@ -20,7 +20,7 @@ MUI DataGrid handles sorting, filtering, and pagination out of the box and is th
 
 ## Environment variables
 
-```
+```env
 NEXT_PUBLIC_SUPABASE_URL=https://hbnbeoysfmprnkrabroc.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=   # Supabase dashboard → Settings → API → "Publishable key" (formerly anon key, starts with sb_publishable_)
 NEXT_PUBLIC_API_URL=https://weeklyreport-clean.up.railway.app
@@ -43,11 +43,13 @@ export const supabase = createClient(
 ```
 
 **Sign in:**
+
 ```ts
 const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 ```
 
 **Attaching the token to every backend API call:**
+
 ```ts
 // lib/api.ts
 async function apiFetch(path: string, options?: RequestInit) {
@@ -82,7 +84,7 @@ The OpenAPI JSON spec (for type generation) is at `/openapi.json`.
 All endpoints require `Authorization: Bearer <supabase_access_token>`.
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/api/auth/me` | Verify auth is working — returns current user + permissions |
 | `GET` | `/api/window/get-initial-ui-state` | Main dashboard state — buildings, units summary, user context |
 | `GET` | `/api/units/table-data` | Unit table rows (the primary data table) |
@@ -106,6 +108,7 @@ export function Providers({ children }) {
 ```
 
 Example query:
+
 ```ts
 const { data, isLoading } = useQuery({
   queryKey: ['units', 'table'],

@@ -21,14 +21,14 @@ Adding any of those would be dead weight — they never execute in a static/Taur
 ## Files
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | [src/instrumentation-client.ts](../src/instrumentation-client.ts) | Client-side `Sentry.init()`. Next.js auto-loads this file in the browser/WebView. |
 | [src/app/global-error.tsx](../src/app/global-error.tsx) | App Router global error boundary — captures React render crashes via `Sentry.captureException`. |
 | [.env.local](../.env.local) | Holds `NEXT_PUBLIC_SENTRY_DSN` (gitignored, safe). |
 
 ## Package
 
-```
+```text
 @sentry/nextjs
 ```
 
@@ -39,7 +39,7 @@ package is what provides `instrumentation-client.ts` auto-loading.
 
 The DSN is read from an env var so it isn't hardcoded:
 
-```
+```env
 # .env.local  (gitignored)
 NEXT_PUBLIC_SENTRY_DSN=https://<key>@o<orgId>.ingest.<region>.sentry.io/<projectId>
 ```

@@ -8,7 +8,7 @@ Everything you need to get the project building and running on your machine.
 
 The project's dependencies (Supabase packages) require **Node ≥ 22**, and the repo pins the version so everyone uses the same one (`.nvmrc` in the repo root).
 
-#### macOS
+#### Node on macOS
 
 Recommended: use a version manager.
 
@@ -34,7 +34,7 @@ nvm use          # reads .nvmrc → installs/selects Node 22
 node --version   # should print v22.x.x (≥ 22.20.0)
 ```
 
-#### Windows
+#### Node on Windows
 
 **nvm-windows does NOT read `.nvmrc`** — install and select the version explicitly:
 
@@ -55,7 +55,7 @@ node --version   # should print v22.x.x (≥ 22.20.0)
 
 ### Rust (for building the desktop app)
 
-#### macOS
+#### Rust on macOS
 
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -63,11 +63,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
 ```
 
-#### Windows
+#### Rust on Windows
 
-1. Download and run `rustup-init.exe` from https://rustup.rs (choose default installation), then restart your terminal.
-2. Install **Visual Studio C++ Build Tools** from https://visualstudio.microsoft.com/visual-cpp-build-tools/ — during install, select the **"Desktop development with C++"** workload. (Rust on Windows cannot link without this.)
-3. **WebView2** — usually already present on Windows 10/11. If not, install the Evergreen runtime from https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+1. Download and run `rustup-init.exe` from <https://rustup.rs> (choose default installation), then restart your terminal.
+2. Install **Visual Studio C++ Build Tools** from <https://visualstudio.microsoft.com/visual-cpp-build-tools/> — during install, select the **"Desktop development with C++"** workload. (Rust on Windows cannot link without this.)
+3. **WebView2** — usually already present on Windows 10/11. If not, install the Evergreen runtime from <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>
 
 ## 2. Get the project
 
@@ -112,7 +112,7 @@ npm run dev
 
 The build script needs the **signing key**, which is not in git. You need this file placed in `src-tauri/`:
 
-```
+```text
 src-tauri/private.tauri.key       ← ask for this (keep it private, never commit it)
 ```
 
@@ -130,7 +130,7 @@ On Windows you get `.msi` / `.exe` installers in `src-tauri\target\release\bundl
 ## Troubleshooting
 
 | Problem | Fix |
-|---|---|
+| --- | --- |
 | `npm ci` fails with "lock file out of sync" | You're on an old commit — `git pull`. Don't edit the lock file. |
 | Sentry / native module compile errors | Wrong Node version. Switch to Node 22 (`nvm use 22`), then `rm -rf node_modules && npm ci` (Windows: delete the `node_modules` folder, then `npm ci`) |
 | `tauri:build` fails reading the key | `src-tauri/private.tauri.key` is missing — ask for it |

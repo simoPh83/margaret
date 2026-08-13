@@ -2,7 +2,8 @@
 
 ## Progress
 
-### Part 1 — One-time local setup
+### Part 1 checklist — One-time local setup
+
 - [x] Step 1 — Add updater plugins to Cargo.toml
 - [x] Step 2 — Register plugins in lib.rs
 - [x] Step 3 — Declare capabilities
@@ -12,12 +13,14 @@
 - [x] Step 7 — Add in-app update UI
 - [ ] Step 8 — Version bump strategy (reference only)
 
-### Part 2 — GitHub repository configuration
+### Part 2 checklist — GitHub repository configuration
+
 - [x] Step 1 — Add GitHub Secrets
 - [x] Step 2 — Enable GitHub Pages
 - [x] Step 3 — Set workflow permissions
 
-### Part 3 — Ship it
+### Part 3 checklist — Ship it
+
 - [x] Create `.github/workflows/release.yml`
 - [x] First tag push and smoke test
   > **Note:** Manual `workflow_dispatch` run confirmed all build jobs succeed.
@@ -41,7 +44,7 @@ later.
 
 ## How it all fits together
 
-```
+```text
 developer                  GitHub                       users
 ──────────                 ──────                       ─────
 git tag v1.2.0   ──push──► Actions workflow runs
@@ -59,7 +62,7 @@ git tag v1.2.0   ──push──► Actions workflow runs
 ### Two distinct types of "signing"
 
 | | Tauri ed25519 key pair | OS code-signing certificate |
-|---|---|---|
+| --- | --- | --- |
 | **Purpose** | Verifies a downloaded update was built by you (tamper-proof) | Tells the OS the installer is from a known publisher |
 | **Cost** | Free — generated locally | ~$400/yr (Windows EV cert) or free via Apple Developer account |
 | **Required for updater?** | **Yes** | No |
@@ -125,7 +128,7 @@ npx tauri signer generate -w ~/.tauri/margaret.key
 
 The command prints something like:
 
-```
+```text
 Public key: dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1...
 Private key saved to /Users/you/.tauri/margaret.key
 Password: (the password you entered, or blank)
@@ -248,7 +251,7 @@ does nothing to the release pipeline.
 In your GitHub repo → **Settings → Secrets and variables → Actions**, add:
 
 | Secret name | Value |
-|---|---|
+| --- | --- |
 | `TAURI_SIGNING_PRIVATE_KEY` | Full contents of `~/.tauri/margaret.key` |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | The password you entered when generating the key (leave blank if none) |
 
@@ -436,6 +439,7 @@ git push origin main --tags
 ```
 
 Watch the workflow in the **Actions** tab. When it goes green:
+
 - A GitHub Release named "Margaret v1.1.0" is live with installers attached.
 - `https://YOUR_USERNAME.github.io/margaret/latest.json` is updated.
 - Any running copy of Margaret will see the new version on its next check.

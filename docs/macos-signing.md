@@ -6,7 +6,7 @@ This doc collects everything we know so far, to pick up when ready.
 ## Which build for which Mac
 
 | Mac | Build artifact | `latest.json` platform key |
-|-----|----------------|----------------------------|
+| --- | --- | --- |
 | Apple Silicon (M1/M2/M3/M4) | `margaret_<ver>_aarch64.dmg` / `margaret_aarch64.app.tar.gz` | `darwin-aarch64` |
 | Intel | `margaret_<ver>_x64.dmg` / `margaret_x64.app.tar.gz` | `darwin-x86_64` |
 

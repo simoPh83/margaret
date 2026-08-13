@@ -14,6 +14,7 @@ App name: **Margaret** | Repo: `github.com/simoPh83/margaret` (private)
 **Next step:** Tauri scaffold — `cargo tauri init`, configure `tauri.conf.json`, verify `tauri dev` opens the app.
 
 **Credentials (never commit these):**
+
 - Supabase URL: `https://hbnbeoysfmprnkrabroc.supabase.co`
 - Supabase publishable (anon) key: `sb_publishable_samLAszsXPIY13LjRIJrpg_3N99txzD`
 - Backend API: `https://weeklyreport-clean.up.railway.app`
@@ -54,10 +55,12 @@ App name: **Margaret** | Repo: `github.com/simoPh83/margaret` (private)
 ## Phase 1 — scope for today's session
 
 ### 1. GitHub repo
+
 - [ ] Create private repo `margaret` under `simoPh83`
 - [ ] Initial push with project scaffold
 
 ### 2. Next.js project scaffold
+
 - [ ] `create-next-app` with TypeScript, App Router, `src/` dir, Tailwind off
 - [x] Configure `next.config.ts`: `output: 'export'`
 - [x] Install dependencies: `@supabase/supabase-js`, `@tanstack/react-query`, `@mui/material`, `@mui/x-data-grid`, `@emotion/react`, `@emotion/styled`
@@ -65,21 +68,25 @@ App name: **Margaret** | Repo: `github.com/simoPh83/margaret` (private)
 - [x] `.env.local.example` committed to repo (values blanked)
 
 ### 3. Core lib files
+
 - [x] `src/lib/supabase.ts` — Supabase client singleton
 - [x] `src/lib/api.ts` — `apiFetch` with auto-attached Bearer token
 - [x] `src/lib/isTauri.ts` — platform detection helper
 
 ### 4. TanStack Query setup
+
 - [x] `src/app/providers.tsx` — `QueryClientProvider` wrapper
 - [x] Wire into `src/app/layout.tsx`
 
 ### 5. Auth
+
 - [x] `src/app/(auth)/login/page.tsx` — email/password sign-in form (MUI)
 - [x] Auth guard: `src/app/(protected)/layout.tsx` redirects unauthenticated users to `/login` (client-side; `proxy.js`/middleware is incompatible with `output: 'export'`)
 - [x] Redirect authenticated users away from `/login`
 - [x] Session persistence (Supabase SDK handles this automatically)
 
 ### 6. First protected screen — Units table
+
 - [x] `src/app/(protected)/units/page.tsx`
 - [x] `useQuery` calling `GET /api/units/table-data`
 - [x] MUI DataGrid rendering the response
@@ -87,6 +94,7 @@ App name: **Margaret** | Repo: `github.com/simoPh83/margaret` (private)
 - [ ] Confirm `GET /api/auth/me` returns 200 with the Supabase token (smoke test — run `next dev` and log in)
 
 ### 7. Tauri scaffold
+
 - [ ] `cargo tauri init` inside the repo root
 - [ ] `tauri.conf.json`: `frontendDist` → `../out`, `devUrl` → `http://localhost:3000`
 - [ ] App icon placeholder
@@ -111,9 +119,9 @@ App name: **Margaret** | Repo: `github.com/simoPh83/margaret` (private)
 ## Reference links
 
 | Resource | URL |
-|---|---|
-| Backend API docs | https://weeklyreport-clean.up.railway.app/docs |
-| OpenAPI spec | https://weeklyreport-clean.up.railway.app/openapi.json |
-| Supabase dashboard | https://supabase.com/dashboard/project/hbnbeoysfmprnkrabroc |
-| Tauri v2 docs | https://v2.tauri.app |
-| GitHub repo | https://github.com/simoPh83/margaret |
+| --- | --- |
+| Backend API docs | <https://weeklyreport-clean.up.railway.app/docs> |
+| OpenAPI spec | <https://weeklyreport-clean.up.railway.app/openapi.json> |
+| Supabase dashboard | <https://supabase.com/dashboard/project/hbnbeoysfmprnkrabroc> |
+| Tauri v2 docs | <https://v2.tauri.app> |
+| GitHub repo | <https://github.com/simoPh83/margaret> |
