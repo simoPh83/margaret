@@ -1,5 +1,5 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "https://schema.tauri.app/config/2.11.3",
   "productName": "margaret",
   "version": "0.2.7",
   "identifier": "com.simoph83.margaret",

@@ -13,6 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import { alpha, type Theme, useTheme } from '@mui/material/styles'
 import { GridPagination } from '@mui/x-data-grid'
 import { buildingAddress, cellNumber, cellText, useUnits, UnitRow } from '@/lib/units'
 
@@ -30,24 +31,54 @@ function statusColor(row: UnitRow): string | undefined {
   return typeof fromApi === 'string' ? fromApi : STATUS_COLORS[cellText(row, 'status')]
 }
 
-/** Mix a hex color with white; amount 0..1 (higher = lighter). */
-function tint(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16)
-  const mix = (c: number) => Math.round(c + (255 - c) * amount)
-  return `rgb(${mix(n >> 16)}, ${mix((n >> 8) & 0xff)}, ${mix(n & 0xff)})`
+function dataGridStyles(theme: Theme, height: string) {
+  const underlineColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.5 : 0.35)
+
+  return {
+    height,
+    bgcolor: 'background.paper',
+    borderColor: 'divider',
+    '& .MuiDataGrid-columnHeaders': {
+      bgcolor: 'background.paper',
+      borderBottomColor: 'divider',
+    },
+    '& .MuiDataGrid-footerContainer': {
+      bgcolor: 'background.paper',
+      borderTopColor: 'divider',
+    },
+    '& .MuiDataGrid-cell': {
+      py: 1,
+      borderColor: 'divider',
+    },
+    '& .MuiDataGrid-columnHeader': {
+      borderColor: 'divider',
+    },
+    '& .MuiDataGrid-row': {
+      borderColor: 'divider',
+    },
+    '& .MuiDataGrid-row:hover': {
+      bgcolor: 'action.hover',
+    },
+    '& .MuiDataGrid-row.has-remarks .MuiDataGrid-cell[data-field="unit_name"]': {
+      cursor: 'help',
+      textDecoration: `underline dotted ${underlineColor}`,
+      textUnderlineOffset: 3,
+    },
+  }
 }
 
 function StatusCell({ row }: { row: GridValidRowModel }) {
-  const color = statusColor(row) ?? '#8B8B8B'
+  const theme = useTheme()
+  const color = statusColor(row) ?? theme.palette.grey[500]
   return (
     <Chip
       label={cellText(row, 'status') || '—'}
       size="small"
       sx={{
-        bgcolor: tint(color, 0.75),
-        color: '#1f2937',
+        bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.24 : 0.16),
+        color,
         fontWeight: 600,
-        border: `1px solid ${color}`,
+        border: `1px solid ${alpha(color, theme.palette.mode === 'dark' ? 0.52 : 0.32)}`,
       }}
     />
   )
@@ -55,17 +86,20 @@ function StatusCell({ row }: { row: GridValidRowModel }) {
 
 /** Diverging bar centred on 0: positive grows right (green), negative grows left (red). */
 function VarianceBar({ value }: { value: number }) {
+  const theme = useTheme()
   if (value === -999 || !Number.isFinite(value)) {
     return <Typography variant="body2" color="text.disabled">—</Typography>
   }
   const clamped = Math.max(-100, Math.min(100, value))
   const width = Math.abs(clamped) / 2 // percent of half-track
   const positive = clamped >= 0
+  const trackColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.06)
+  const dividerColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.34 : 0.22)
   return (
     <Tooltip title={`${positive ? '+' : ''}${value.toFixed(1)}% vs ERV`}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {/* compact track; bar capped at ±100% of half-track */}
-        <Box sx={{ position: 'relative', width: 64, flex: 'none', height: 8, bgcolor: 'rgba(0,0,0,0.06)', borderRadius: 1 }}>
+        <Box sx={{ position: 'relative', width: 64, flex: 'none', height: 8, bgcolor: trackColor, borderRadius: 1 }}>
           <Box
             sx={{
               position: 'absolute',
@@ -73,7 +107,7 @@ function VarianceBar({ value }: { value: number }) {
               bottom: 0,
               left: '50%',
               width: '1px',
-              bgcolor: 'rgba(0,0,0,0.25)',
+              bgcolor: dividerColor,
             }}
           />
           <Box
@@ -199,6 +233,7 @@ const TOTALS_TOOLTIPS: Record<string, string> = {
  * table, regardless of pagination.
  */
 function TotalsSummary({ totals }: { totals: TableTotals }) {
+  const theme = useTheme()
   const parts: React.ReactNode[] = [
     <span key="p">{totals.properties} {totals.properties === 1 ? 'property' : 'properties'}</span>,
     <span key="u">{totals.units} {totals.units === 1 ? 'unit' : 'units'}</span>,
@@ -216,7 +251,14 @@ function TotalsSummary({ totals }: { totals: TableTotals }) {
             arrow
             slotProps={{ tooltip: { sx: { fontSize: '0.95rem' } } }}
           >
-            <Box component="span" sx={{ cursor: 'help', textDecoration: 'underline dotted rgba(0,0,0,0.35)', textUnderlineOffset: 3 }}>
+            <Box
+              component="span"
+              sx={{
+                cursor: 'help',
+                textDecoration: `underline dotted ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.5 : 0.35)}`,
+                textUnderlineOffset: 3,
+              }}
+            >
               {content}
             </Box>
           </Tooltip>
@@ -260,6 +302,9 @@ function TableFooter({ totals }: { totals: TableTotals }) {
         flexWrap: 'wrap',
         columnGap: 2,
         width: '100%',
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
         pl: 2,
       }}
     >
@@ -365,6 +410,7 @@ function buildColumns(allColumns: ApiColumn[], only?: string[], omit: string[] =
 }
 
 export default function UnitsPage() {
+  const theme = useTheme()
   const { data, isLoading, error } = useUnits()
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const raw = data?.raw
@@ -395,10 +441,10 @@ export default function UnitsPage() {
         color:
           (sectionRows[0] && statusColor(sectionRows[0])) ||
           STATUS_COLORS[section.statuses[0]] ||
-          '#8B8B8B',
+          theme.palette.grey[500],
       }
     })
-  }, [data?.columns, rows])
+  }, [data?.columns, rows, theme])
 
   return (
     <Box sx={{ p: 3 }}>
@@ -421,7 +467,19 @@ export default function UnitsPage() {
       )}
       {/* Temporary: show raw API shape until column mapping is confirmed */}
       {!isLoading && rows.length === 0 && !error && (
-        <Box component="pre" sx={{ fontSize: 12, overflowX: 'auto', mb: 2, bgcolor: '#f5f5f5', p: 2 }}>
+        <Box
+          component="pre"
+          sx={(muiTheme) => ({
+            fontSize: 12,
+            overflowX: 'auto',
+            mb: 2,
+            bgcolor: 'background.paper',
+            border: `1px solid ${muiTheme.palette.divider}`,
+            borderRadius: 2,
+            color: 'text.secondary',
+            p: 2,
+          })}
+        >
           {JSON.stringify(raw, null, 2)}
         </Box>
       )}
@@ -440,15 +498,7 @@ export default function UnitsPage() {
           // Fixed height (not autoHeight): the grid fills the window below the
           // app bar/tabs/page header (~240px) and scrolls internally, so the
           // column headers and pagination footer always stay visible.
-          sx={{
-            height: 'calc(100dvh - 240px)',
-            '& .MuiDataGrid-cell': { py: 1 },
-            '& .MuiDataGrid-row.has-remarks .MuiDataGrid-cell[data-field="unit_name"]': {
-              cursor: 'help',
-              textDecoration: 'underline dotted rgba(0,0,0,0.35)',
-              textUnderlineOffset: 3,
-            },
-          }}
+          sx={dataGridStyles(theme, 'calc(100dvh - 240px)')}
         />
       )}
       {rows.length > 0 && view === 'state' && <ByStateView tables={stateTables} />}
@@ -551,6 +601,7 @@ function StateTableCard({
   onDragEnd: () => void
   onDrop: () => void
 }) {
+  const theme = useTheme()
   const color = table.color
   return (
     <Paper
@@ -573,7 +624,7 @@ function StateTableCard({
           py: 1,
           cursor: 'grab',
           userSelect: 'none',
-          bgcolor: tint(color, 0.85),
+          bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.22 : 0.14),
           borderLeft: `6px solid ${color}`,
           '&:active': { cursor: 'grabbing' },
         }}
@@ -605,14 +656,8 @@ function StateTableCard({
             // column headers stay pinned. (maxHeight would give short tables
             // no intrinsic height — the grid collapses to 0px.)
             sx={{
-              height: 'calc(100dvh - 280px)',
+              ...dataGridStyles(theme, 'calc(100dvh - 280px)'),
               border: 'none',
-              '& .MuiDataGrid-cell': { py: 1 },
-              '& .MuiDataGrid-row.has-remarks .MuiDataGrid-cell[data-field="unit_name"]': {
-                cursor: 'help',
-                textDecoration: 'underline dotted rgba(0,0,0,0.35)',
-                textUnderlineOffset: 3,
-              },
             }}
             pageSizeOptions={[10, 25, 50]}
             initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
