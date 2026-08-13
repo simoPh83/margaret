@@ -11,7 +11,6 @@ import {
   Select,
   Typography,
 } from '@mui/material'
-import { alpha, type Theme, useTheme } from '@mui/material/styles'
 import {
   Bar,
   BarChart,
@@ -38,25 +37,21 @@ const STATUS_COLORS: Record<string, string> = {
 }
 const FALLBACK_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b']
 
-function chartChrome(theme: Theme) {
-  return {
-    cursor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.04),
-    grid: alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.78 : 1),
-    lane: alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.48 : 0.78),
-    mutedText: theme.palette.text.secondary,
-    strongText: theme.palette.text.primary,
-    tooltip: {
-      backgroundColor: theme.palette.background.paper,
-      borderRadius: 8,
-      border: `1px solid ${theme.palette.divider}`,
-      boxShadow:
-        theme.palette.mode === 'dark'
-          ? `0 18px 36px ${alpha('#000', 0.42)}`
-          : `0 10px 24px ${alpha('#0f172a', 0.12)}`,
-      color: theme.palette.text.primary,
-    },
-  }
-}
+const chartChrome = {
+  cursor: 'var(--app-chart-cursor)',
+  grid: 'var(--app-chart-grid)',
+  lane: 'var(--app-chart-timeline-lane)',
+  todayLine: 'var(--app-chart-timeline-today)',
+  mutedText: 'var(--app-chart-text-muted)',
+  strongText: 'var(--app-chart-text-strong)',
+  tooltip: {
+    backgroundColor: 'var(--app-chart-tooltip-surface)',
+    borderRadius: 8,
+    border: '1px solid var(--app-chart-tooltip-border)',
+    boxShadow: 'var(--app-chart-tooltip-shadow)',
+    color: 'var(--app-chart-text-strong)',
+  },
+} as const
 
 const gbp = (v: number) => `£${v.toLocaleString()}`
 
@@ -141,12 +136,20 @@ const EVENT_LABELS: Record<EventType, string> = {
 
 /** Count-badge tooltip content (pure React, not a recharts callback). */
 function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
-  const theme = useTheme()
-  const chrome = chartChrome(theme)
   const date = new Date(DAY_START + bucket.x * MS_PER_DAY)
   const dateLabel = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   return (
-    <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: chrome.tooltip.boxShadow, p: 1.5, maxWidth: 340 }}>
+    <Box
+      sx={{
+        backgroundColor: 'var(--app-chart-tooltip-surface)',
+        border: '1px solid var(--app-chart-tooltip-border)',
+        borderRadius: 2,
+        boxShadow: 'var(--app-chart-tooltip-shadow)',
+        color: 'var(--app-chart-text-strong)',
+        p: 1.5,
+        maxWidth: 340,
+      }}
+    >
       <Typography variant="body2" sx={{ fontWeight: 700 }}>
         {EVENT_LABELS[bucket.type]} · {dateLabel} ({bucket.x} days)
       </Typography>
@@ -166,8 +169,6 @@ function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
 
 /** Custom SVG timeline — avoids recharts axis bugs entirely. */
 function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDays: number; ticks: number[] }) {
-  const theme = useTheme()
-  const chrome = chartChrome(theme)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
   const [hovered, setHovered] = useState<{ bucket: DayBucket; px: number; py: number } | null>(null)
@@ -200,24 +201,24 @@ function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDay
         {/* Vertical gridlines */}
         {ticks.map((t) => (
           <line key={t} x1={xPx(t)} y1={MT} x2={xPx(t)} y2={MT + LANES.length * ROW_H}
-            stroke={chrome.grid} strokeDasharray="3 3" />
+            stroke={chartChrome.grid} strokeDasharray="3 3" />
         ))}
         {/* Today line */}
-        <line x1={xPx(0)} y1={MT} x2={xPx(0)} y2={MT + LANES.length * ROW_H} stroke={chrome.strongText} strokeWidth={1.5} />
-        <text x={xPx(0) + 4} y={MT + 11} fontSize={11} fill={chrome.strongText}>Today</text>
+        <line x1={xPx(0)} y1={MT} x2={xPx(0)} y2={MT + LANES.length * ROW_H} stroke={chartChrome.todayLine} strokeWidth={1.5} />
+        <text x={xPx(0) + 4} y={MT + 11} fontSize={11} fill={chartChrome.todayLine}>Today</text>
         {/* Horizontal lane separators */}
         {LANES.map((_, i) => (
-          <line key={i} x1={ML} y1={MT + i * ROW_H} x2={ML + plotW} y2={MT + i * ROW_H} stroke={chrome.lane} />
+          <line key={i} x1={ML} y1={MT + i * ROW_H} x2={ML + plotW} y2={MT + i * ROW_H} stroke={chartChrome.lane} />
         ))}
         {/* Y axis labels */}
         {LANES.map((lane, i) => (
           <text key={lane} x={ML - 8} y={MT + (i + 0.5) * ROW_H + 4}
-            textAnchor="end" fontSize={12} fill={chrome.strongText}>{lane}</text>
+            textAnchor="end" fontSize={12} fill={chartChrome.strongText}>{lane}</text>
         ))}
         {/* X axis tick labels */}
         {ticks.map((t) => (
           <text key={t} x={xPx(t)} y={MT + LANES.length * ROW_H + 18}
-            textAnchor="middle" fontSize={11} fill={chrome.mutedText}>
+            textAnchor="middle" fontSize={11} fill={chartChrome.mutedText}>
             {axisTick(t, maxDays)}
           </text>
         ))}
@@ -299,8 +300,6 @@ function DonutSector(props: PieSectorShapeProps) {
 }
 
 export default function ChartsPage() {
-  const theme = useTheme()
-  const chrome = useMemo(() => chartChrome(theme), [theme])
   const { data, isLoading, error } = useUnits()
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const [periodDays, setPeriodDays] = useState(90)
@@ -394,7 +393,7 @@ export default function ChartsPage() {
       <text
         x={Number(x)}
         y={Number(y)}
-        fill={chrome.mutedText}
+        fill={chartChrome.mutedText}
         textAnchor={textAnchor}
         dominantBaseline={dominantBaseline}
         fontSize={12}
@@ -404,7 +403,7 @@ export default function ChartsPage() {
     )
   }
 
-  const legendFormatter = (value: string) => <span style={{ color: chrome.strongText }}>{value}</span>
+  const legendFormatter = (value: string) => <span style={{ color: chartChrome.strongText }}>{value}</span>
 
   // Future events grouped by (day-offset, type) — x is integer days from today.
   const timeline = useMemo(() => {
@@ -510,9 +509,9 @@ export default function ChartsPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={chrome.tooltip}
-                  itemStyle={{ color: chrome.strongText }}
-                  labelStyle={{ color: chrome.mutedText, fontWeight: 600 }}
+                  contentStyle={chartChrome.tooltip}
+                  itemStyle={{ color: chartChrome.strongText }}
+                  labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }}
                   formatter={(value, name, item) => [
                     `${value} units · ${Math.round(Number(item?.payload?.sqft ?? 0)).toLocaleString()} sq ft`,
                     name,
@@ -529,8 +528,8 @@ export default function ChartsPage() {
             <Typography variant="subtitle1" gutterBottom>Rent PA by Building (Top 12)</Typography>
             <ResponsiveContainer width="100%" height={360}>
               <BarChart data={rentByBuilding} layout="vertical" margin={{ left: 12, right: 24 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chrome.grid} />
-                <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: chrome.mutedText, fontSize: 12 }} tickFormatter={(v) => `£${v / 1000}k`} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chartChrome.grid} />
+                <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: chartChrome.mutedText, fontSize: 12 }} tickFormatter={(v) => `£${v / 1000}k`} />
                 <YAxis
                   type="category"
                   dataKey="name"
@@ -538,17 +537,17 @@ export default function ChartsPage() {
                   axisLine={false}
                   width={150}
                   interval={0}
-                  tick={{ fontSize: 11, fill: chrome.mutedText }}
+                  tick={{ fontSize: 11, fill: chartChrome.mutedText }}
                   tickFormatter={(name: string) =>
                     name.length > 22 ? `${name.slice(0, 21)}…` : name
                   }
                 />
                 <Tooltip
-                  contentStyle={chrome.tooltip}
-                  itemStyle={{ color: chrome.strongText }}
-                  labelStyle={{ color: chrome.mutedText, fontWeight: 600 }}
+                  contentStyle={chartChrome.tooltip}
+                  itemStyle={{ color: chartChrome.strongText }}
+                  labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }}
                   formatter={(v) => gbp(Number(v))}
-                  cursor={{ fill: chrome.cursor }}
+                  cursor={{ fill: chartChrome.cursor }}
                 />
                 <Legend formatter={legendFormatter} />
                 <Bar dataKey="rent" name="Rent PA" fill="#2563eb" radius={[0, 4, 4, 0]} animationDuration={800} />
@@ -566,10 +565,10 @@ export default function ChartsPage() {
             </Typography>
             <ResponsiveContainer width="100%" height={170}>
               <BarChart data={vacancyAging}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chrome.grid} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chrome.mutedText }} />
-                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={30} tick={{ fill: chrome.mutedText, fontSize: 12 }} />
-                <Tooltip contentStyle={chrome.tooltip} itemStyle={{ color: chrome.strongText }} labelStyle={{ color: chrome.mutedText, fontWeight: 600 }} cursor={{ fill: chrome.cursor }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartChrome.grid} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartChrome.mutedText }} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={30} tick={{ fill: chartChrome.mutedText, fontSize: 12 }} />
+                <Tooltip contentStyle={chartChrome.tooltip} itemStyle={{ color: chartChrome.strongText }} labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }} cursor={{ fill: chartChrome.cursor }} />
                 <Bar dataKey="count" name="Vacant units" fill="#f59e0b" radius={[4, 4, 0, 0]} animationDuration={800} />
               </BarChart>
             </ResponsiveContainer>
@@ -592,14 +591,14 @@ export default function ChartsPage() {
             <Typography variant="subtitle1" gutterBottom>Lease Expiries by Year</Typography>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={expiriesByYear}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chrome.grid} />
-                <XAxis dataKey="year" tickLine={false} axisLine={false} tick={{ fill: chrome.mutedText, fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} allowDecimals={false} tick={{ fill: chrome.mutedText, fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartChrome.grid} />
+                <XAxis dataKey="year" tickLine={false} axisLine={false} tick={{ fill: chartChrome.mutedText, fontSize: 12 }} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} tick={{ fill: chartChrome.mutedText, fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={chrome.tooltip}
-                  itemStyle={{ color: chrome.strongText }}
-                  labelStyle={{ color: chrome.mutedText, fontWeight: 600 }}
-                  cursor={{ fill: chrome.cursor }}
+                  contentStyle={chartChrome.tooltip}
+                  itemStyle={{ color: chartChrome.strongText }}
+                  labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }}
+                  cursor={{ fill: chartChrome.cursor }}
                 />
                 <Bar dataKey="count" name="Units expiring" fill="#2563eb" radius={[4, 4, 0, 0]} animationDuration={800} />
               </BarChart>
@@ -634,10 +633,10 @@ export default function ChartsPage() {
             <>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={monthlyCounts} margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chrome.grid} />
-                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chrome.mutedText }} interval="preserveStartEnd" />
-                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={36} tick={{ fill: chrome.mutedText, fontSize: 12 }} />
-                  <Tooltip contentStyle={chrome.tooltip} itemStyle={{ color: chrome.strongText }} labelStyle={{ color: chrome.mutedText, fontWeight: 600 }} cursor={{ fill: chrome.cursor }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartChrome.grid} />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chartChrome.mutedText }} interval="preserveStartEnd" />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={36} tick={{ fill: chartChrome.mutedText, fontSize: 12 }} />
+                  <Tooltip contentStyle={chartChrome.tooltip} itemStyle={{ color: chartChrome.strongText }} labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }} cursor={{ fill: chartChrome.cursor }} />
                   <Bar dataKey="review" name="Rent Review" stackId="events" fill={EVENT_COLORS.review} animationDuration={600} />
                   <Bar dataKey="expiry" name="Expiry Date" stackId="events" fill={EVENT_COLORS.expiry} animationDuration={600} />
                   <Bar dataKey="break" name="Break Date" stackId="events" fill={EVENT_COLORS.break} radius={[4, 4, 0, 0]} animationDuration={600} />
