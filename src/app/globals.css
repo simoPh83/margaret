@@ -9,6 +9,15 @@
   --app-accent-hover: #1d4ed8;
   --app-accent-soft: #dbeafe;
   --app-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  --app-chart-text-strong: #22324a;
+  --app-chart-text-muted: #52627b;
+  --app-chart-grid: rgba(20, 32, 51, 0.14);
+  --app-chart-timeline-lane: rgba(20, 32, 51, 0.1);
+  --app-chart-timeline-today: #314566;
+  --app-chart-cursor: rgba(20, 32, 51, 0.06);
+  --app-chart-tooltip-surface: #ffffff;
+  --app-chart-tooltip-border: rgba(20, 32, 51, 0.14);
+  --app-chart-tooltip-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +32,15 @@
     --app-accent-hover: #93c5fd;
     --app-accent-soft: rgba(96, 165, 250, 0.18);
     --app-shadow: 0 22px 52px rgba(0, 0, 0, 0.38);
+    --app-chart-text-strong: #d7e4f8;
+    --app-chart-text-muted: #b8c6db;
+    --app-chart-grid: rgba(184, 198, 219, 0.22);
+    --app-chart-timeline-lane: rgba(184, 198, 219, 0.16);
+    --app-chart-timeline-today: #eef4ff;
+    --app-chart-cursor: rgba(255, 255, 255, 0.08);
+    --app-chart-tooltip-surface: #162238;
+    --app-chart-tooltip-border: rgba(184, 198, 219, 0.24);
+    --app-chart-tooltip-shadow: 0 18px 36px rgba(0, 0, 0, 0.42);
   }
 }
 
