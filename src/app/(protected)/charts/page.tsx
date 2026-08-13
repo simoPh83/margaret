@@ -9,6 +9,8 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import {
@@ -313,22 +315,34 @@ export default function ChartsPage() {
   const { data, isLoading, error } = useUnits()
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const [periodDays, setPeriodDays] = useState(90)
+  /** Metric for the status donut: unit count, floor area, or rental value. */
+  const [statusMetric, setStatusMetric] = useState<'count' | 'sqft' | 'erv'>('count')
 
   const ervYear = (data?.raw as { table_data?: { metadata?: { erv_year?: number } } } | undefined)
     ?.table_data?.metadata?.erv_year
   const ervLabel = ervYear ? `ERV (${ervYear})` : 'ERV'
 
   const statusData = useMemo(() => {
-    const groups = new Map<string, { count: number; sqft: number }>()
+    const groups = new Map<string, { count: number; sqft: number; erv: number }>()
     for (const row of rows) {
       const status = cellText(row, 'status') || 'Unknown'
-      const entry = groups.get(status) ?? { count: 0, sqft: 0 }
+      const entry = groups.get(status) ?? { count: 0, sqft: 0, erv: 0 }
       entry.count += 1
       entry.sqft += cellNumber(row, 'sq_ft')
+      entry.erv += cellNumber(row, 'erv')
       groups.set(status, entry)
     }
-    return [...groups.entries()].map(([name, v]) => ({ name, value: v.count, sqft: v.sqft }))
-  }, [rows])
+    return [...groups.entries()].map(([name, v]) => ({
+      name,
+      count: v.count,
+      sqft: v.sqft,
+      erv: v.erv,
+      // The metric currently driving slice size + label percentages.
+      value: statusMetric === 'count' ? v.count : statusMetric === 'sqft' ? v.sqft : v.erv,
+    }))
+  }, [rows, statusMetric])
+
+  const statusTotal = statusData.reduce((s, d) => s + d.value, 0)
 
   const rentByBuilding = useMemo(() => {
     const byBuilding = new Map<string | number, { name: string; rent: number; erv: number }>()
@@ -398,7 +412,7 @@ export default function ChartsPage() {
     textAnchor = 'middle',
     dominantBaseline = 'central',
   }: PieLabelRenderProps) => {
-    const percentage = rows.length ? ((Number(value) / rows.length) * 100).toFixed(0) : '0'
+    const percentage = statusTotal ? ((Number(value) / statusTotal) * 100).toFixed(0) : '0'
     return (
       <text
         x={Number(x)}
@@ -411,6 +425,13 @@ export default function ChartsPage() {
         {`${name ?? 'Unknown'}: ${percentage}%`}
       </text>
     )
+  }
+
+  /** Tooltip value line for the status donut, formatted per active metric. */
+  const formatStatusMetric = (payload: { count: number; sqft: number; erv: number; value: number }) => {
+    if (statusMetric === 'count') return `${payload.count} units`
+    if (statusMetric === 'sqft') return `${Math.round(payload.sqft).toLocaleString()} sq ft`
+    return `${gbp(Math.round(payload.erv))} ${ervLabel}`
   }
 
   const legendFormatter = (value: string) => <span style={{ color: chartChrome.strongText }}>{value}</span>
@@ -494,7 +515,19 @@ export default function ChartsPage() {
       >
         <Card variant="outlined">
           <CardContent>
-            <Typography variant="subtitle1" gutterBottom>Units by Status</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+              <Typography variant="subtitle1">Units by Status</Typography>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={statusMetric}
+                onChange={(_e, v) => v && setStatusMetric(v)}
+              >
+                <ToggleButton value="count">Units</ToggleButton>
+                <ToggleButton value="sqft">Sq Ft</ToggleButton>
+                <ToggleButton value="erv">{ervLabel}</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -522,10 +555,14 @@ export default function ChartsPage() {
                   contentStyle={chartChrome.tooltip}
                   itemStyle={{ color: chartChrome.strongText }}
                   labelStyle={{ color: chartChrome.mutedText, fontWeight: 600 }}
-                  formatter={(value, name, item) => [
-                    `${value} units · ${Math.round(Number(item?.payload?.sqft ?? 0)).toLocaleString()} sq ft`,
-                    name,
-                  ]}
+                  formatter={(_value, name, item) => {
+                    const p = item?.payload as { count: number; sqft: number; erv: number; value: number } | undefined
+                    if (!p) return ['', name]
+                    return [
+                      `${formatStatusMetric(p)} · ${p.count} units · ${Math.round(p.sqft).toLocaleString()} sq ft`,
+                      name,
+                    ]
+                  }}
                 />
                 <Legend formatter={legendFormatter} />
               </PieChart>
