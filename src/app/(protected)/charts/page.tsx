@@ -147,6 +147,7 @@ function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
         boxShadow: 'var(--app-chart-tooltip-shadow)',
         color: 'var(--app-chart-text-strong)',
         p: 1.5,
+        width: 'max-content',
         maxWidth: 340,
       }}
     >
@@ -242,18 +243,27 @@ function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDay
           )
         })}
       </svg>
-      {hovered && (
-        <div style={{
-          position: 'absolute',
-          left: hovered.px,
-          top: hovered.py - 10,
-          transform: 'translate(-50%, -100%)',
-          pointerEvents: 'none',
-          zIndex: 10,
-        }}>
-          <EventTooltipContent bucket={hovered.bucket} />
-        </div>
-      )}
+      {hovered && (() => {
+        // Keep the tooltip inside the chart: clamp horizontally so it never
+        // overflows either edge, and flip below the pill when there is no
+        // room above (top lane).
+        const TIP_W = 340
+        const half = TIP_W / 2
+        const clampedX = Math.min(Math.max(hovered.px, half), Math.max(width - half, half))
+        const nearTop = hovered.py - MT < ROW_H * 0.75
+        return (
+          <div style={{
+            position: 'absolute',
+            left: clampedX,
+            top: nearTop ? hovered.py + 14 : hovered.py - 10,
+            transform: nearTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}>
+            <EventTooltipContent bucket={hovered.bucket} />
+          </div>
+        )
+      })()}
     </div>
   )
 }
