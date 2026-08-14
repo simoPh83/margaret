@@ -1,6 +1,7 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { DataGrid, GridColDef, GridValidRowModel } from '@mui/x-data-grid'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { DataGrid, GridColDef, GridRowSelectionModel, GridValidRowModel, useGridApiRef } from '@mui/x-data-grid'
 import {
   Alert,
   Box,
@@ -429,12 +430,30 @@ function buildColumns(allColumns: ApiColumn[], only?: string[], omit: string[] =
 }
 
 export default function UnitsPage() {
+  return (
+    <Suspense>
+      <UnitsPageContent />
+    </Suspense>
+  )
+}
+
+function UnitsPageContent() {
   const theme = useTheme()
   const { data, isLoading, error } = useUnits()
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const raw = data?.raw
+  const searchParams = useSearchParams()
+  const unitParam = searchParams.get('unit')
+  const buildingParam = searchParams.get('building')
+  const buildingIdParam = searchParams.get('bid')
+  // Deep link from the events timeline: pre-fill the search box with the
+  // PROPERTY name (unit names repeat across buildings, so searching by unit
+  // name would list unrelated units) and show the classic view. The search is
+  // lazy-initialised because this page remounts on navigation.
   const [view, setView] = useState<'classic' | 'state'>('classic')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => buildingParam ?? unitParam ?? '')
+  const apiRef = useGridApiRef()
+  const [selectionOverride, setSelectionOverride] = useState<GridRowSelectionModel | null>(null)
 
   // Filter the FULL dataset before the grid paginates, so matches are found in
   // records on any page. Totals and the by-state tables follow the filter too.
@@ -472,6 +491,35 @@ export default function UnitsPage() {
       }
     })
   }, [data?.columns, filteredRows, theme])
+
+  // Deep-linked unit: derived selection (not effect state) plus an imperative
+  // scroll so the row is visible once the grid has mounted its rows. When the
+  // building id is available, match the unit name WITHIN that building only —
+  // unit names are not unique across properties (e.g. "First Floor").
+  const urlMatch = useMemo(() => {
+    if (!unitParam) return undefined
+    const name = unitParam.toLowerCase()
+    if (buildingIdParam) {
+      const bid = Number(buildingIdParam)
+      const inBuilding = filteredRows.find(
+        (row) =>
+          cellText(row, 'unit_name').toLowerCase() === name &&
+          row.metadata?.raw_unit?.building_id != null &&
+          Number(row.metadata.raw_unit.building_id) === bid
+      )
+      if (inBuilding) return inBuilding
+    }
+    return filteredRows.find((row) => cellText(row, 'unit_name').toLowerCase() === name)
+  }, [unitParam, buildingIdParam, filteredRows])
+  const rowSelectionModel: GridRowSelectionModel =
+    selectionOverride ?? { type: 'include', ids: new Set(urlMatch?.id != null ? [urlMatch.id] : []) }
+
+  useEffect(() => {
+    if (!urlMatch) return
+    const index = filteredRows.indexOf(urlMatch)
+    // Wait a tick for the grid to mount/measure rows before scrolling to it.
+    requestAnimationFrame(() => apiRef.current?.scrollToIndexes?.({ rowIndex: index }))
+  }, [urlMatch, filteredRows, apiRef])
 
   return (
     <Box sx={{ p: 3 }}>
@@ -521,6 +569,7 @@ export default function UnitsPage() {
       )}
       {rows.length > 0 && view === 'classic' && (
         <DataGrid
+          apiRef={apiRef}
           rows={filteredRows as GridValidRowModel[]}
           columns={columns}
           loading={isLoading}
@@ -530,6 +579,8 @@ export default function UnitsPage() {
           getRowClassName={(params) =>
             params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
           }
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={(model) => setSelectionOverride(model)}
           slots={{ footer: () => <TableFooter totals={totals} /> }}
           // Fixed height (not autoHeight): the grid fills the window below the
           // app bar/tabs/page header (~240px) and scrolls internally, so the

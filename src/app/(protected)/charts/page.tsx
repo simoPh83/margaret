@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Alert,
   Box,
   Card,
   CardContent,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -69,6 +71,8 @@ type EventType = keyof typeof EVENT_COLORS
 interface TimelineUnit {
   unit: string
   building: string
+  /** Building id used to disambiguate units with the same name across properties. */
+  buildingId?: number
   tenant: string
   dateDisplay: string
 }
@@ -136,23 +140,49 @@ const EVENT_LABELS: Record<EventType, string> = {
   break: 'Break Date',
 }
 
-/** Count-badge tooltip content (pure React, not a recharts callback). */
-function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
+/**
+ * Count-badge tooltip content (pure React, not a recharts callback).
+ * In `pinned` mode it gains a close button and the unit names become links
+ * to the Units table, pre-filtered and selected on that unit.
+ */
+function EventTooltipContent({
+  bucket,
+  pinned = false,
+  onClose,
+  onUnitClick,
+}: {
+  bucket: DayBucket
+  pinned?: boolean
+  onClose?: () => void
+  onUnitClick?: (unit: TimelineUnit) => void
+}) {
   const date = new Date(DAY_START + bucket.x * MS_PER_DAY)
   const dateLabel = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   return (
     <Box
       sx={{
+        position: 'relative',
         backgroundColor: 'var(--app-chart-tooltip-surface)',
         border: '1px solid var(--app-chart-tooltip-border)',
         borderRadius: 2,
         boxShadow: 'var(--app-chart-tooltip-shadow)',
         color: 'var(--app-chart-text-strong)',
         p: 1.5,
+        pr: pinned ? 4 : 1.5,
         width: 'max-content',
         maxWidth: 340,
       }}
     >
+      {pinned && (
+        <IconButton
+          size="small"
+          aria-label="Close"
+          onClick={onClose}
+          sx={{ position: 'absolute', top: 2, right: 2, p: 0.5 }}
+        >
+          <Box component="span" sx={{ fontSize: 16, lineHeight: 1 }}>×</Box>
+        </IconButton>
+      )}
       <Typography variant="body2" sx={{ fontWeight: 700 }}>
         {EVENT_LABELS[bucket.type]} · {dateLabel} ({bucket.x} days)
       </Typography>
@@ -160,7 +190,23 @@ function EventTooltipContent({ bucket }: { bucket: DayBucket }) {
         {bucket.units.map((u, i) => (
           <li key={i}>
             <Typography variant="body2">
-              <strong>{u.unit}</strong> — {u.building}
+              {pinned ? (
+                <Box
+                  component="span"
+                  onClick={() => onUnitClick?.(u)}
+                  sx={{
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    '&:hover': { color: 'var(--app-chart-timeline-today)' },
+                  }}
+                >
+                  {u.unit}
+                </Box>
+              ) : (
+                <strong>{u.unit}</strong>
+              )}
+              {' — '}{u.building}
               {u.tenant ? ` · ${u.tenant}` : ''}
             </Typography>
           </li>
@@ -175,6 +221,14 @@ function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDay
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
   const [hovered, setHovered] = useState<{ bucket: DayBucket; px: number; py: number } | null>(null)
+  const [pinned, setPinned] = useState<{ bucket: DayBucket; px: number; py: number } | null>(null)
+  const router = useRouter()
+
+  const goToUnit = (unit: TimelineUnit) => {
+    const params = new URLSearchParams({ unit: unit.unit, building: unit.building })
+    if (unit.buildingId != null) params.set('bid', String(unit.buildingId))
+    router.push(`/units?${params.toString()}`)
+  }
 
   useEffect(() => {
     const el = wrapRef.current
@@ -235,6 +289,9 @@ function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDay
             <g key={i} className="count-badge" style={{ cursor: 'pointer' }}
               onMouseEnter={() => setHovered({ bucket, px: cx, py: cy })}
               onMouseLeave={() => setHovered(null)}
+              onClick={() =>
+                setPinned((prev) => (prev && prev.bucket === bucket ? null : { bucket, px: cx, py: cy }))
+              }
             >
               <rect x={cx - W / 2} y={cy - H / 2} width={W} height={H} rx={10}
                 fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} />
@@ -245,24 +302,33 @@ function TimelinePanel({ events, maxDays, ticks }: { events: DayBucket[]; maxDay
           )
         })}
       </svg>
-      {hovered && (() => {
+      {(() => {
+        // A pinned tooltip takes priority over the hover preview; it stays
+        // open (with a close button) until explicitly dismissed.
+        const active = pinned ?? hovered
+        if (!active) return null
         // Keep the tooltip inside the chart: clamp horizontally so it never
         // overflows either edge, and flip below the pill when there is no
         // room above (top lane).
         const TIP_W = 340
         const half = TIP_W / 2
-        const clampedX = Math.min(Math.max(hovered.px, half), Math.max(width - half, half))
-        const nearTop = hovered.py - MT < ROW_H * 0.75
+        const clampedX = Math.min(Math.max(active.px, half), Math.max(width - half, half))
+        const nearTop = active.py - MT < ROW_H * 0.75
         return (
           <div style={{
             position: 'absolute',
             left: clampedX,
-            top: nearTop ? hovered.py + 14 : hovered.py - 10,
+            top: nearTop ? active.py + 14 : active.py - 10,
             transform: nearTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
-            pointerEvents: 'none',
+            pointerEvents: pinned ? 'auto' : 'none',
             zIndex: 10,
           }}>
-            <EventTooltipContent bucket={hovered.bucket} />
+            <EventTooltipContent
+              bucket={active.bucket}
+              pinned={!!pinned}
+              onClose={() => setPinned(null)}
+              onUnitClick={goToUnit}
+            />
           </div>
         )
       })()}
@@ -443,6 +509,7 @@ export default function ChartsPage() {
       const unit: TimelineUnit = {
         unit: cellText(row, 'unit_name'),
         building: buildingLabel(row),
+        buildingId: row.metadata?.raw_unit?.building_id ?? undefined,
         tenant: cellText(row, 'tenant'),
         dateDisplay: '',
       }
