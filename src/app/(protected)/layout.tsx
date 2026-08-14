@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AppBar, Box, Button, CircularProgress, Tab, Tabs, Toolbar, Typography } from '@mui/material'
-import { getAppVersion, openExternal } from '@/lib/appInfo'
+import { openExternal, setWindowTitleWithVersion } from '@/lib/appInfo'
 import { supabase } from '@/lib/supabase'
 import { checkForUpdate, UpdateInfo } from '@/lib/updater'
 
@@ -17,10 +17,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const [checking, setChecking] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
-  const [version, setVersion] = useState<string | null>(null)
+  const [installing, setInstalling] = useState(false)
 
   useEffect(() => {
-    getAppVersion().then(setVersion)
+    setWindowTitleWithVersion()
   }, [])
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       >
         <Toolbar sx={{ gap: 2 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
-            Margaret App{version && ` v${version}`}
+            Margaret App
           </Typography>
           {userEmail && (
             <Typography variant="body2" color="text.secondary">
@@ -75,14 +75,24 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
             Logout
           </Button>
           {update && (
-            <Button variant="contained" size="small" color="warning" onClick={() =>
-              update.install().catch((err) => {
-                // Already reported to Sentry inside install() — fall back to manual download.
-                console.error('Update install failed:', err)
-                openExternal(update.manualUrl)
-              })
-            }>
-              Update to {update.version} ↗
+            <Button
+              variant="contained"
+              size="small"
+              color="warning"
+              disabled={installing}
+              startIcon={installing ? <CircularProgress size={14} color="inherit" /> : undefined}
+              onClick={() => {
+                if (installing) return
+                setInstalling(true)
+                update.install().catch((err) => {
+                  // Already reported to Sentry inside install() — fall back to manual download.
+                  console.error('Update install failed:', err)
+                  setInstalling(false)
+                  openExternal(update.manualUrl)
+                })
+              }}
+            >
+              {installing ? 'Updating…' : `Update to ${update.version} ↗`}
             </Button>
           )}
         </Toolbar>
