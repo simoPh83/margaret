@@ -540,7 +540,7 @@ function UnitsPageContent() {
             onChange={(_e, value) => value && setView(value)}
           >
             <ToggleButton value="classic">Classic view</ToggleButton>
-            <ToggleButton value="state">By state</ToggleButton>
+            <ToggleButton value="state">By status</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
