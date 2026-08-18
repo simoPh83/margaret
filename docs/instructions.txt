@@ -59,6 +59,14 @@ This produces a .dmg installer in src-tauri/target/release/bundle/dmg/
 _________________________________________________
 
 
+//assign floor numbers to units in the db (needs DATABASE_URL in .env.local)
+node scripts/assign-units-floor.js           // dry run, shows what would change
+node scripts/assign-units-floor.js --apply   // writes the values
+
+
+_________________________________________________
+
+
 
 //tauri instructions Windows
 Prerequisites (do these once):

@@ -86,15 +86,20 @@ function StatusCell({ row }: { row: GridValidRowModel }) {
   )
 }
 
-/** Diverging bar centred on 0: positive grows right (green), negative grows left (red). */
+/**
+ * Diverging bar centred on 0: positive grows right (green), negative grows
+ * left (red). Square-root scale saturating at ±50% — most values sit within
+ * ±25%, so small variations are amplified for visibility while the numeric
+ * label always shows the true value. Cells with no value render empty.
+ */
 function VarianceBar({ value }: { value: number }) {
   const theme = useTheme()
   if (value === -999 || !Number.isFinite(value)) {
-    return <Typography variant="body2" color="text.disabled">—</Typography>
+    return null
   }
-  const clamped = Math.max(-100, Math.min(100, value))
-  const width = Math.abs(clamped) / 2 // percent of half-track
-  const positive = clamped >= 0
+  const clamped = Math.max(-50, Math.min(50, value))
+  const width = Math.sqrt(Math.abs(clamped) / 50) * 50 // percent of half-track (50 = full)
+  const positive = value >= 0
   const trackColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.06)
   const dividerColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.34 : 0.22)
   return (
