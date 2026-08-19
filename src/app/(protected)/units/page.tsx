@@ -191,6 +191,20 @@ interface TableTotals {
   numeric: Record<string, number | null>
 }
 
+/** Amount per sq ft (rent or ERV), or null when either value is missing/zero. */
+function perSqFt(row: UnitRow, field: 'rent' | 'erv'): number | null {
+  const amount = cellNumberOrNull(row, field)
+  const sqFt = cellNumberOrNull(row, 'sq_ft')
+  if (amount === null || sqFt === null || sqFt <= 0) return null
+  return amount / sqFt
+}
+
+/** £55.7 / £64 — one decimal, dropped when the decimal part is 0. */
+function formatPsf(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return `£${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}`
+}
+
 /** Totals over ALL rows of the table — pagination and filters do not affect them. */
 function computeTotals(
   rows: UnitRow[],
@@ -371,7 +385,7 @@ interface StateTable extends StateSection {
  * - `omit`: always excluded (defaults to the internal `id` field)
  */
 function buildColumns(allColumns: ApiColumn[], only?: string[], omit: string[] = ['id']): GridColDef[] {
-  return (only ? allColumns.filter((c) => only.includes(c.field)) : allColumns)
+  const built: GridColDef[] = (only ? allColumns.filter((c) => only.includes(c.field)) : allColumns)
     .filter((col) => !omit.includes(col.field))
     .map((col) => {
       // cells[field].sort_value for correct sorting; cells[field].display for rendering
@@ -429,9 +443,35 @@ function buildColumns(allColumns: ApiColumn[], only?: string[], omit: string[] =
           <VarianceBar value={cellNumber(params.row, 'variance')} />
         )
         base.width = 150
+      } else if (col.field === 'erv') {
+        base.renderCell = (params) => {
+          const psf = perSqFt(params.row, 'erv')
+          const display = params.row.cells?.erv?.display ?? ''
+          return psf === null ? display : `${display} (${formatPsf(psf)} PSF)`
+        }
       }
       return base
     })
+
+  // Synthetic "Rent PSF" column straight after "Rent PA" (classic table and
+  // the Let table; the by-state tables use SHARED_FIELDS which has no rent).
+  const withRentPsf: GridColDef[] = []
+  for (const col of built) {
+    withRentPsf.push(col)
+    if (col.field === 'rent') {
+      withRentPsf.push({
+        field: 'rent_psf',
+        headerName: 'Rent PSF',
+        width: 90,
+        valueGetter: (_value: unknown, row: GridValidRowModel) => perSqFt(row, 'rent'),
+        renderCell: (params: { row: GridValidRowModel }) => {
+          const psf = perSqFt(params.row, 'rent')
+          return psf === null ? '—' : formatPsf(psf)
+        },
+      })
+    }
+  }
+  return withRentPsf
 }
 
 export default function UnitsPage() {

@@ -65,7 +65,7 @@ export default function LoginPage() {
       <Button type="submit" variant="contained" disabled={loading}>
         {loading ? <CircularProgress size={20} color="inherit" /> : 'Sign in'}
       </Button>
-      {/* TEMP: Sentry test button — remove after verifying */}
+      {/* TEMP: Sentry test button — commented out, re-enable to verify Sentry
       <Button
         type="button"
         variant="outlined"
@@ -76,6 +76,7 @@ export default function LoginPage() {
       >
         Throw test error
       </Button>
+      */}
     </Box>
   )
 }
