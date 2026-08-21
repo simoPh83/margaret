@@ -55,12 +55,12 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
       <AppBar
         position="static"
         color="default"
         elevation={1}
-        sx={{ bgcolor: 'background.paper', color: 'text.primary', backgroundImage: 'none', borderBottom: '1px solid', borderColor: 'divider' }}
+        sx={{ flexShrink: 0, bgcolor: 'background.paper', color: 'text.primary', backgroundImage: 'none', borderBottom: '1px solid', borderColor: 'divider' }}
       >
         <Toolbar sx={{ gap: 2 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
@@ -106,7 +106,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           ))}
         </Tabs>
       </AppBar>
-      {children}
-    </>
+      <Box component="main" sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {children}
+      </Box>
+    </Box>
   )
 }

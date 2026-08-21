@@ -402,6 +402,10 @@ jobs:
           }
           Path('update-manifest').mkdir(exist_ok=True)
           Path('update-manifest/latest.json').write_text(json.dumps(manifest, indent=2))
+          # stop Vercel from building gh-pages: deploymentEnabled is read from
+          # vercel.json on the *deployed* branch, so it must live on gh-pages
+          Path('update-manifest/vercel.json').write_text(json.dumps(
+              {'git': {'deploymentEnabled': {'gh-pages': False}}}, indent=2))
           print(json.dumps(manifest, indent=2))
           EOF
 
@@ -410,7 +414,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./update-manifest
-          keep_files: false    # only latest.json lives on gh-pages
+          keep_files: false    # only latest.json + vercel.json live on gh-pages
 
       - name: Publish release (undraft)
         env:
