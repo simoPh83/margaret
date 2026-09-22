@@ -45,6 +45,13 @@ nvm use 22
 
 # Option B: Volta (https://volta.sh) — automatically reads package.json engines
 volta install node@22
+
+# Option C: fnm (fast, switches automatically via .nvmrc when you cd into the project)
+winget install --id Schniz.fnm -e
+# then add this line to your PowerShell profile (notepad $PROFILE):
+#   fnm env --use-on-cd | Out-String | Invoke-Expression
+fnm install 22
+fnm default 22
 ```
 
 ```powershell
@@ -65,7 +72,7 @@ source ~/.cargo/env
 
 #### Rust on Windows
 
-1. Download and run `rustup-init.exe` from <https://rustup.rs> (choose default installation), then restart your terminal.
+1. Download and run `rustup-init.exe` from <https://rustup.rs> (choose default installation), or install it with winget: `winget install --id Rustlang.Rustup -e`. Then restart your terminal.
 2. Install **Visual Studio C++ Build Tools** from <https://visualstudio.microsoft.com/visual-cpp-build-tools/> — during install, select the **"Desktop development with C++"** workload. (Rust on Windows cannot link without this.)
 3. **WebView2** — usually already present on Windows 10/11. If not, install the Evergreen runtime from <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>
 
@@ -137,3 +144,4 @@ On Windows you get `.msi` / `.exe` installers in `src-tauri\target\release\bundl
 | `next: command not found` | Dependencies not installed — run `npm ci` |
 | Windows: `link.exe not found` / linker errors | C++ Build Tools missing — install with the "Desktop development with C++" workload |
 | Windows: app builds but shows blank window | WebView2 runtime missing — install the Evergreen runtime |
+| Windows: `fnm`/`node` not found right after installing | The terminal inherited a stale PATH — open a new terminal (or restart VS Code) so it picks up the updated PATH |
