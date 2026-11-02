@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from './api';
 
 export interface UnitCell {
@@ -10,6 +10,8 @@ export interface UnitCell {
 
 /** Subset of the raw unit record returned in row.metadata.raw_unit. */
 export interface RawUnit {
+  /** Globally unique unit ID — used by the status-override endpoint. */
+  id?: number | null;
   building_id?: number | null;
   property_name?: string | null;
   formatted_address?: string | null;
@@ -37,6 +39,40 @@ export function useUnits() {
       const columns: { field: string; headerName: string }[] = tableData?.columns ?? [];
       return { rows, columns, raw: data };
     },
+  });
+}
+
+/** Canonical status options, matching the server's status codes (see docs/unit-status-endpoint.md). */
+export const STATUS_OPTIONS = [
+  { code: 0, short: 'Mothballed', label: 'Mothballed', color: '#8B8B8B' },
+  { code: 1, short: 'Vacant', label: 'Vacant', color: '#FFB366' },
+  { code: 2, short: 'Let', label: 'Let', color: '#66B266' },
+  { code: 3, short: 'U-O', label: 'Under Offer', color: '#6699FF' },
+  { code: 4, short: 'Under Ref', label: 'Under Refurbishment', color: '#FFD966' },
+] as const;
+
+export interface UnitStatusUpdateResponse {
+  success: boolean;
+  message: string;
+  unit_id: number;
+  status_code: number;
+  status_display: string;
+  previous_status_code: number | null;
+  start_date: string;
+}
+
+/** PUT the new status for a unit, then re-fetch the units table so the UI reflects it. */
+export function useUpdateUnitStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ unitId, statusCode }: { unitId: number; statusCode: number }) => {
+      const res = await apiFetch(`/api/units/${unitId}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status_code: statusCode }),
+      });
+      return (await res.json()) as UnitStatusUpdateResponse;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['units', 'table'] }),
   });
 }
 

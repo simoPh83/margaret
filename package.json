@@ -1,6 +1,6 @@
 {
   "name": "margaret",
-  "version": "0.1.0",
+  "version": "0.4.1",
   "private": true,
   "engines": {
     "node": ">=22.20.0"
@@ -28,6 +28,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "next": "16.3.0",
+    "notistack": "^3.0.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1"

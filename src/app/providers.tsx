@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CssBaseline } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
+import { SnackbarProvider } from 'notistack'
 import { useState, useEffect } from 'react'
 import { appTheme } from './theme'
 
@@ -24,7 +25,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={appTheme}>
         <CssBaseline enableColorScheme />
-        {children}
+        <SnackbarProvider
+          maxSnack={3}
+          autoHideDuration={4000}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          {children}
+        </SnackbarProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

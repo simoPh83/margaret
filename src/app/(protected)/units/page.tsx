@@ -6,8 +6,13 @@ import {
   Alert,
   Box,
   Chip,
+  CircularProgress,
   Collapse,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   TextField,
   ToggleButton,
@@ -15,9 +20,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import { useSnackbar } from 'notistack'
 import { alpha, type Theme, useTheme } from '@mui/material/styles'
 import { GridPagination } from '@mui/x-data-grid'
-import { buildingAddress, cellNumber, cellText, useUnits, UnitRow } from '@/lib/units'
+import { buildingAddress, cellNumber, cellText, STATUS_OPTIONS, useUnits, useUpdateUnitStatus, UnitRow } from '@/lib/units'
 
 /** Fallback status tints; the API also ships a color per status in cell metadata. */
 const STATUS_COLORS: Record<string, string> = {
@@ -69,20 +75,60 @@ function dataGridStyles(theme: Theme, height: string) {
   }
 }
 
+/** Clickable status chip: opens a picker that calls the status-override endpoint. */
 function StatusCell({ row }: { row: GridValidRowModel }) {
   const theme = useTheme()
+  const { enqueueSnackbar } = useSnackbar()
+  const mutation = useUpdateUnitStatus()
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const color = statusColor(row) ?? theme.palette.grey[500]
+  const current = cellText(row, 'status')
+  const unitId = row.metadata?.raw_unit?.id
+  const editable = typeof unitId === 'number'
+  const busy = mutation.isPending && mutation.variables?.unitId === unitId
+
+  const pick = (option: (typeof STATUS_OPTIONS)[number]) => {
+    setAnchorEl(null)
+    if (!editable || option.short === current) return
+    mutation.mutate(
+      { unitId, statusCode: option.code },
+      {
+        onSuccess: (res) => enqueueSnackbar(res.message || `Status updated to '${option.label}'`, { variant: 'success' }),
+        onError: (err) => enqueueSnackbar(err instanceof Error ? err.message : 'Failed to update status', { variant: 'error' }),
+      }
+    )
+  }
+
   return (
-    <Chip
-      label={cellText(row, 'status') || '—'}
-      size="small"
-      sx={{
-        bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.24 : 0.16),
-        color,
-        fontWeight: 600,
-        border: `1px solid ${alpha(color, theme.palette.mode === 'dark' ? 0.52 : 0.32)}`,
-      }}
-    />
+    <>
+      <Chip
+        label={busy ? <CircularProgress size={14} sx={{ color, display: 'block' }} /> : current || '—'}
+        size="small"
+        clickable={editable}
+        disabled={busy}
+        onClick={editable ? (e) => setAnchorEl(e.currentTarget) : undefined}
+        title={editable ? 'Change status' : undefined}
+        sx={{
+          bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.24 : 0.16),
+          color,
+          fontWeight: 600,
+          border: `1px solid ${alpha(color, theme.palette.mode === 'dark' ? 0.52 : 0.32)}`,
+        }}
+      />
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        {STATUS_OPTIONS.map((option) => (
+          <MenuItem key={option.code} selected={option.short === current} onClick={() => pick(option)}>
+            <ListItemIcon>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: option.color }} />
+            </ListItemIcon>
+            <ListItemText
+              primary={option.label}
+              secondary={option.short !== option.label ? option.short : undefined}
+            />
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
   )
 }
 
@@ -354,7 +400,7 @@ function TableFooter({ totals }: { totals: TableTotals }) {
 }
 
 /** Fields shown in every by-state table. */
-const SHARED_FIELDS = ['property', 'unit_name', 'sq_ft', 'type', 'erv', 'vacant_since']
+const SHARED_FIELDS = ['property', 'unit_name', 'status', 'sq_ft', 'type', 'erv', 'vacant_since']
 
 interface StateSection {
   key: string
