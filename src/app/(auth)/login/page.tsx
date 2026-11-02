@@ -159,7 +159,7 @@ export default function LoginPage() {
             The Langham Estate
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.85, mt: 0.5 }}>
-            Units, leases and portfolio insights — all in one place.
+            Properties, leases and portfolio insights — all in one place.
           </Typography>
         </Box>
       </Box>
