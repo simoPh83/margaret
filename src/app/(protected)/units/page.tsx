@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DataGrid, GridColDef, GridRowSelectionModel, GridValidRowModel, useGridApiRef } from '@mui/x-data-grid'
 import {
@@ -34,16 +34,49 @@ const STATUS_COLORS: Record<string, string> = {
   Mothballed: '#8B8B8B',
 }
 
+/**
+ * Debounced mirror of a value: updates only after the input has been quiet
+ * for `delayMs`. Filtering the units table re-renders dozens of DataGrids,
+ * so we do it once per typing pause instead of once per keystroke.
+ */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
+
 function statusColor(row: UnitRow): string | undefined {
   const fromApi = row.cells?.status?.metadata?.widget_spec?.color
   return typeof fromApi === 'string' ? fromApi : STATUS_COLORS[cellText(row, 'status')]
 }
 
-function dataGridStyles(theme: Theme, height: string) {
+/** CSS class for a row's status tint, e.g. 'row-status-under-ref' ('' when unknown). */
+function statusRowClass(row: UnitRow): string {
+  const status = cellText(row, 'status')
+  const known = STATUS_OPTIONS.some((o) => o.short === status)
+  return known ? `row-status-${status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : ''
+}
+
+/** Light per-status row backgrounds for the by-property view (stronger on hover). */
+function statusRowTintStyles(theme: Theme) {
+  const dark = theme.palette.mode === 'dark'
+  const styles: Record<string, { bgcolor: string }> = {}
+  for (const option of STATUS_OPTIONS) {
+    const cls = `.MuiDataGrid-row.row-status-${option.short.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    styles[`& ${cls}`] = { bgcolor: alpha(option.color, dark ? 0.14 : 0.08) }
+    styles[`& ${cls}:hover`] = { bgcolor: alpha(option.color, dark ? 0.22 : 0.14) }
+  }
+  return styles
+}
+
+function dataGridStyles(theme: Theme, height?: string) {
   const underlineColor = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.5 : 0.35)
 
   return {
-    height,
+    ...(height ? { height } : {}),
     bgcolor: 'background.paper',
     borderColor: 'divider',
     '& .MuiDataGrid-columnHeaders': {
@@ -317,12 +350,13 @@ const TOTALS_TOOLTIPS: Record<string, string> = {
  * Totals summary content. Counts + numeric totals always cover ALL rows of the
  * table, regardless of pagination.
  */
-function TotalsSummary({ totals }: { totals: TableTotals }) {
+function TotalsSummary({ totals, hidePropertyCount = false }: { totals: TableTotals; hidePropertyCount?: boolean }) {
   const theme = useTheme()
-  const parts: React.ReactNode[] = [
-    <span key="p">{totals.properties} {totals.properties === 1 ? 'property' : 'properties'}</span>,
-    <span key="u">{totals.units} {totals.units === 1 ? 'unit' : 'units'}</span>,
-  ]
+  const parts: React.ReactNode[] = []
+  if (!hidePropertyCount) {
+    parts.push(<span key="p">{totals.properties} {totals.properties === 1 ? 'property' : 'properties'}</span>)
+  }
+  parts.push(<span key="u">{totals.units} {totals.units === 1 ? 'unit' : 'units'}</span>)
   for (const field of TOTAL_NUMERIC_FIELDS) {
     const total = totals.numeric[field]
     if (total !== null && total !== undefined) {
@@ -377,7 +411,15 @@ function TotalsSummary({ totals }: { totals: TableTotals }) {
  * Rendered via the grid's `footer` slot, so it is always frozen at the bottom.
  * GridPagination handles its own state via the grid context.
  */
-function TableFooter({ totals }: { totals: TableTotals }) {
+function TableFooter({
+  totals,
+  hidePropertyCount = false,
+  hidePagination = false,
+}: {
+  totals: TableTotals
+  hidePropertyCount?: boolean
+  hidePagination?: boolean
+}) {
   return (
     <Box
       sx={{
@@ -393,8 +435,8 @@ function TableFooter({ totals }: { totals: TableTotals }) {
         pl: 2,
       }}
     >
-      <TotalsSummary totals={totals} />
-      <GridPagination />
+      <TotalsSummary totals={totals} hidePropertyCount={hidePropertyCount} />
+      {!hidePagination && <GridPagination />}
     </Box>
   )
 }
@@ -541,16 +583,20 @@ function UnitsPageContent() {
   // PROPERTY name (unit names repeat across buildings, so searching by unit
   // name would list unrelated units) and show the classic view. The search is
   // lazy-initialised because this page remounts on navigation.
-  const [view, setView] = useState<'classic' | 'state'>('classic')
+  const [view, setView] = useState<'classic' | 'state' | 'property'>('property')
   const [search, setSearch] = useState(() => buildingParam ?? unitParam ?? '')
   const apiRef = useGridApiRef()
   const [selectionOverride, setSelectionOverride] = useState<GridRowSelectionModel | null>(null)
 
+  // Debounced: filtering re-renders dozens of autoHeight grids, so it runs
+  // once per typing pause rather than once per keystroke.
+  const debouncedSearch = useDebouncedValue(search, 300)
+
   // Filter the FULL dataset before the grid paginates, so matches are found in
   // records on any page. Totals and the by-state tables follow the filter too.
   const filteredRows = useMemo(
-    () => (search.trim() ? rows.filter((row) => rowMatchesSearch(row, search)) : rows),
-    [rows, search]
+    () => (debouncedSearch.trim() ? rows.filter((row) => rowMatchesSearch(row, debouncedSearch)) : rows),
+    [rows, debouncedSearch]
   )
 
   const columns = useMemo(() => buildColumns(data?.columns ?? []), [data?.columns])
@@ -583,6 +629,46 @@ function UnitsPageContent() {
     })
   }, [data?.columns, filteredRows, theme])
 
+  // By-property view: same columns as classic minus the redundant Property one
+  // (each card's header already names the building).
+  const propertyColumns = useMemo(
+    () => buildColumns(data?.columns ?? [], undefined, ['id', 'property']),
+    [data?.columns]
+  )
+
+  const propertyGroups = useMemo<PropertyGroup[]>(() => {
+    const groups = new Map<string, UnitRow[]>()
+    for (const row of filteredRows) {
+      const raw = row.metadata?.raw_unit
+      const key = raw?.building_id != null ? `b${raw.building_id}` : `p:${cellText(row, 'property')}`
+      const list = groups.get(key)
+      if (list) list.push(row)
+      else groups.set(key, [row])
+    }
+    const fields = propertyColumns.map((c) => c.field)
+    return [...groups.entries()]
+      .map(([key, groupRows]) => {
+        const first = groupRows[0]
+        const name = first.metadata?.raw_unit?.property_name || cellText(first, 'property') || 'Unknown property'
+        const address = buildingAddress(first)
+        const { letSqFt, totalSqFt, letUnits } = letStats(groupRows)
+        return {
+          key,
+          name,
+          // Drop the address line when it merely restates the property name.
+          address: addressRepeatsName(name, address) ? '' : address,
+          rows: [...groupRows].sort(compareUnitsWithinProperty),
+          totals: computeTotals(groupRows, fields),
+          letSqFt,
+          totalSqFt,
+          letUnits,
+          letPctUnits: groupRows.length > 0 ? (letUnits / groupRows.length) * 100 : null,
+          letPctSqFt: totalSqFt > 0 ? (letSqFt / totalSqFt) * 100 : null,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [filteredRows, propertyColumns])
+
   // Deep-linked unit: derived selection (not effect state) plus an imperative
   // scroll so the row is visible once the grid has mounted its rows. When the
   // building id is available, match the unit name WITHIN that building only —
@@ -612,6 +698,19 @@ function UnitsPageContent() {
     requestAnimationFrame(() => apiRef.current?.scrollToIndexes?.({ rowIndex: index }))
   }, [urlMatch, filteredRows, apiRef])
 
+  // Deep link in the by-property view: the classic grid isn't mounted, so
+  // scroll the highlighted row (rendered inside its property card) into view.
+  // Grids are autoHeight with all rows in the DOM, so a data-id lookup works.
+  useEffect(() => {
+    if (view !== 'property' || urlMatch?.id == null) return
+    const timer = setTimeout(() => {
+      document
+        .querySelector(`[data-id="${CSS.escape(String(urlMatch.id))}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [view, urlMatch])
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 1 }}>
@@ -632,6 +731,7 @@ function UnitsPageContent() {
           >
             <ToggleButton value="classic">Classic view</ToggleButton>
             <ToggleButton value="state">By status</ToggleButton>
+            <ToggleButton value="property">By property</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
@@ -680,9 +780,207 @@ function UnitsPageContent() {
         />
       )}
       {rows.length > 0 && view === 'state' && <ByStateView tables={stateTables} />}
+      {rows.length > 0 && view === 'property' && (
+        <ByPropertyView groups={propertyGroups} columns={propertyColumns} highlightId={urlMatch?.id ?? null} />
+      )}
     </Box>
   )
 }
+
+/** The API's per-unit sort number within a building (raw_unit.floor). */
+function unitFloor(row: UnitRow): number | null {
+  const floor = row.metadata?.raw_unit?.floor
+  if (floor === null || floor === undefined) return null
+  const n = Number(floor)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Order units within a property: higher floors first so that lower numbers
+ * (basement/ground) sit at the BOTTOM of the card. Units with no floor value
+ * sink below everything; ties fall back to alphabetical unit name.
+ */
+function compareUnitsWithinProperty(a: UnitRow, b: UnitRow): number {
+  const fa = unitFloor(a)
+  const fb = unitFloor(b)
+  if (fa === null && fb === null) {
+    return cellText(a, 'unit_name').localeCompare(cellText(b, 'unit_name'))
+  }
+  if (fa === null) return 1
+  if (fb === null) return -1
+  if (fa !== fb) return fb - fa
+  return cellText(a, 'unit_name').localeCompare(cellText(b, 'unit_name'))
+}
+
+/** Let/vacant breakdown of a group of rows, used for the by-property header stats. */
+function letStats(rows: UnitRow[]) {
+  let letSqFt = 0
+  let totalSqFt = 0
+  let letUnits = 0
+  for (const row of rows) {
+    const sqFt = cellNumberOrNull(row, 'sq_ft') ?? 0
+    totalSqFt += sqFt
+    if (cellText(row, 'status').toLowerCase() === LET_STATUS) {
+      letSqFt += sqFt
+      letUnits++
+    }
+  }
+  return { letSqFt, totalSqFt, letUnits }
+}
+
+/** Normalise for name/address comparison: lowercase, alphanumeric tokens, no leading zeros. */
+function normalizeForCompare(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b0+(\d)/g, '$1')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/** True when the formatted address adds nothing beyond the property name
+ * (e.g. "1 Great Titchfield Street" vs "001 Great Titchfield Street"). */
+function addressRepeatsName(name: string, address: string): boolean {
+  if (!name || !address) return false
+  const n = normalizeForCompare(name)
+  const a = normalizeForCompare(address)
+  return n === a || a.includes(n) || n.includes(a)
+}
+
+interface PropertyGroup {
+  key: string
+  name: string
+  address: string
+  rows: UnitRow[]
+  totals: TableTotals
+  letSqFt: number
+  totalSqFt: number
+  letUnits: number
+  letPctUnits: number | null
+  letPctSqFt: number | null
+}
+
+/** By-property layout: one full-width card per building, sorted by name. */
+function ByPropertyView({
+  groups,
+  columns,
+  highlightId = null,
+}: {
+  groups: PropertyGroup[]
+  columns: GridColDef[]
+  /** Row id of the deep-linked unit (events timeline), highlighted in its card. */
+  highlightId?: string | number | null
+}) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {groups.map((group) => (
+        <PropertyCard key={group.key} group={group} columns={columns} highlightId={highlightId} />
+      ))}
+    </Box>
+  )
+}
+
+// Memoised: with ~40 cards on the page, unrelated parent re-renders must not
+// re-mount every grid.
+const PropertyCard = memo(function PropertyCard({
+  group,
+  columns,
+  highlightId = null,
+}: {
+  group: PropertyGroup
+  columns: GridColDef[]
+  highlightId?: string | number | null
+}) {
+  const theme = useTheme()
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const letTooltip =
+    group.totalSqFt > 0
+      ? `${group.letUnits} of ${group.rows.length} units let · ${Math.round(group.letSqFt).toLocaleString('en-GB')} of ${Math.round(group.totalSqFt).toLocaleString('en-GB')} sq ft let`
+      : `${group.letUnits} of ${group.rows.length} units let`
+  return (
+    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+      {/* Header: property name (+ address when it adds information), let percentages, collapse toggle */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          flexWrap: 'wrap',
+          px: 2,
+          py: 1,
+          borderLeft: `6px solid ${theme.palette.primary.main}`,
+        }}
+      >
+        <Box sx={{ flex: 1, minWidth: 220 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
+            {group.name}
+          </Typography>
+          {group.address && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {group.address}
+            </Typography>
+          )}
+        </Box>
+        {group.letPctUnits !== null && (
+          <Tooltip title={letTooltip} arrow slotProps={{ tooltip: { sx: { fontSize: '0.95rem' } } }}>
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 700, cursor: 'help', fontVariantNumeric: 'tabular-nums' }}
+            >
+              {group.letPctSqFt === null || group.letPctUnits.toFixed(0) === group.letPctSqFt.toFixed(0)
+                ? `Let: ${group.letPctUnits.toFixed(0)}%`
+                : `Let: ${group.letPctUnits.toFixed(0)}% (units) - ${group.letPctSqFt.toFixed(0)}% (sq ft)`}
+            </Typography>
+          </Tooltip>
+        )}
+        <IconButton
+          size="small"
+          onClick={() => setIsCollapsed((v) => !v)}
+          aria-label={isCollapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+        >
+          {isCollapsed ? '▸' : '▾'}
+        </IconButton>
+      </Box>
+      {/* unmountOnExit: a collapsed card's grid leaves the DOM entirely —
+          collapsed properties cost no render time. */}
+      <Collapse in={!isCollapsed} unmountOnExit>
+        <Box sx={{ p: 1 }}>
+          <DataGrid
+            rows={group.rows as GridValidRowModel[]}
+            columns={columns}
+            // autoHeight + one page holding every row: no pagination controls —
+            // most properties have <10 units, and the page scrolls instead.
+            autoHeight
+            paginationModel={{ page: 0, pageSize: group.rows.length }}
+            getRowHeight={() => 'auto'}
+            getRowClassName={(params) =>
+              [
+                params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : '',
+                statusRowClass(params.row),
+                highlightId !== null && String(params.row.id) === String(highlightId)
+                  ? 'deep-linked'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+            }
+            slots={{ footer: () => <TableFooter totals={group.totals} hidePropertyCount hidePagination /> }}
+            sx={{
+              ...dataGridStyles(theme),
+              border: 'none',
+              ...statusRowTintStyles(theme),
+              // Deep-linked unit (events timeline): outlined so it stands out
+              // over the status tint.
+              '& .MuiDataGrid-row.deep-linked': {
+                outline: `2px solid ${theme.palette.primary.main}`,
+                outlineOffset: -2,
+              },
+            }}
+          />
+        </Box>
+      </Collapse>
+    </Paper>
+  )
+})
 
 /** By-state layout: LET spans the full width, the other tables flow in a 2-column grid. */
 function ByStateView({ tables }: { tables: StateTable[] }) {

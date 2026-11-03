@@ -16,6 +16,8 @@ export interface RawUnit {
   property_name?: string | null;
   formatted_address?: string | null;
   remarks?: string | null;
+  /** Sort number within the building (basement -2, ground 0, first 1, ...). Null until backfilled. */
+  floor?: number | null;
   [key: string]: unknown;
 }
 
