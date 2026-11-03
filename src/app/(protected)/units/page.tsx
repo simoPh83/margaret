@@ -433,6 +433,7 @@ function TableFooter({
         borderColor: 'divider',
         bgcolor: 'background.paper',
         pl: 2,
+        pt: 1.5,
       }}
     >
       <TotalsSummary totals={totals} hidePropertyCount={hidePropertyCount} />
@@ -729,9 +730,9 @@ function UnitsPageContent() {
             value={view}
             onChange={(_e, value) => value && setView(value)}
           >
-            <ToggleButton value="classic">Classic view</ToggleButton>
+            <ToggleButton value="classic">Units List</ToggleButton>
             <ToggleButton value="state">By status</ToggleButton>
-            <ToggleButton value="property">By property</ToggleButton>
+            <ToggleButton value="property">Classic View</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
@@ -907,7 +908,7 @@ const PropertyCard = memo(function PropertyCard({
           flexWrap: 'wrap',
           px: 2,
           py: 1,
-          borderLeft: `6px solid ${theme.palette.primary.main}`,
+          borderLeft: `6px solid ${theme.palette.warning.main}`,
         }}
       >
         <Box sx={{ flex: 1, minWidth: 220 }}>
