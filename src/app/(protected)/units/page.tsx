@@ -583,9 +583,24 @@ function UnitsPageContent() {
   // Deep link from the events timeline: pre-fill the search box with the
   // PROPERTY name (unit names repeat across buildings, so searching by unit
   // name would list unrelated units) and show the classic view. The search is
-  // lazy-initialised because this page remounts on navigation.
-  const [view, setView] = useState<'classic' | 'state' | 'property'>('property')
-  const [search, setSearch] = useState(() => buildingParam ?? unitParam ?? '')
+  // lazy-initialised because this page remounts on navigation. View and search
+  // persist in sessionStorage so they survive tab switches; deep-link params
+  // take precedence over the stored search.
+  const [view, setView] = useState<'classic' | 'state' | 'property'>(() => {
+    const stored = sessionStorage.getItem('units.view')
+    return stored === 'classic' || stored === 'state' || stored === 'property' ? stored : 'property'
+  })
+  const [search, setSearch] = useState(
+    () => buildingParam ?? unitParam ?? sessionStorage.getItem('units.search') ?? ''
+  )
+
+  useEffect(() => {
+    sessionStorage.setItem('units.view', view)
+  }, [view])
+
+  useEffect(() => {
+    sessionStorage.setItem('units.search', search)
+  }, [search])
   const apiRef = useGridApiRef()
   const [selectionOverride, setSelectionOverride] = useState<GridRowSelectionModel | null>(null)
 
@@ -693,15 +708,22 @@ function UnitsPageContent() {
     selectionOverride ?? { type: 'include', ids: new Set(urlMatch?.id != null ? [urlMatch.id] : []) }
 
   useEffect(() => {
-    if (!urlMatch) return
+    if (view !== 'classic' || !urlMatch) return
     const index = filteredRows.indexOf(urlMatch)
+    if (index < 0) return
+    const api = apiRef.current
+    // The row may sit on a later page: jump to its page before scrolling,
+    // otherwise scrollToIndexes can't reach it.
+    const pageSize = api?.state?.pagination?.paginationModel?.pageSize ?? 25
+    api?.setPage(Math.floor(index / pageSize))
     // Wait a tick for the grid to mount/measure rows before scrolling to it.
-    requestAnimationFrame(() => apiRef.current?.scrollToIndexes?.({ rowIndex: index }))
-  }, [urlMatch, filteredRows, apiRef])
+    requestAnimationFrame(() => api?.scrollToIndexes?.({ rowIndex: index }))
+  }, [view, urlMatch, filteredRows, apiRef])
 
   // Deep link in the by-property view: the classic grid isn't mounted, so
   // scroll the highlighted row (rendered inside its property card) into view.
   // Grids are autoHeight with all rows in the DOM, so a data-id lookup works.
+  // (The by-state cards scroll themselves — their grids are virtualized.)
   useEffect(() => {
     if (view !== 'property' || urlMatch?.id == null) return
     const timer = setTimeout(() => {
@@ -769,7 +791,12 @@ function UnitsPageContent() {
           initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           getRowHeight={() => 'auto'}
           getRowClassName={(params) =>
-            params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
+            [
+              params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : '',
+              urlMatch?.id != null && String(params.row.id) === String(urlMatch.id) ? 'deep-linked' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
           }
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={(model) => setSelectionOverride(model)}
@@ -777,10 +804,19 @@ function UnitsPageContent() {
           // Fixed height (not autoHeight): the grid fills the window below the
           // app bar/tabs/page header (~240px) and scrolls internally, so the
           // column headers and pagination footer always stay visible.
-          sx={dataGridStyles(theme, 'calc(100dvh - 240px)')}
+          sx={{
+            ...dataGridStyles(theme, 'calc(100dvh - 240px)'),
+            // Deep-linked unit (events timeline): outlined so it stands out.
+            '& .MuiDataGrid-row.deep-linked': {
+              outline: `2px solid ${theme.palette.primary.main}`,
+              outlineOffset: -2,
+            },
+          }}
         />
       )}
-      {rows.length > 0 && view === 'state' && <ByStateView tables={stateTables} />}
+      {rows.length > 0 && view === 'state' && (
+        <ByStateView tables={stateTables} highlightId={urlMatch?.id ?? null} />
+      )}
       {rows.length > 0 && view === 'property' && (
         <ByPropertyView groups={propertyGroups} columns={propertyColumns} highlightId={urlMatch?.id ?? null} />
       )}
@@ -984,7 +1020,14 @@ const PropertyCard = memo(function PropertyCard({
 })
 
 /** By-state layout: LET spans the full width, the other tables flow in a 2-column grid. */
-function ByStateView({ tables }: { tables: StateTable[] }) {
+function ByStateView({
+  tables,
+  highlightId = null,
+}: {
+  tables: StateTable[]
+  /** Row id of the deep-linked unit (events timeline), highlighted in its card. */
+  highlightId?: string | number | null
+}) {
   const [order, setOrder] = useState<string[]>(() => tables.map((t) => t.key))
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [dragKey, setDragKey] = useState<string | null>(null)
@@ -1030,6 +1073,7 @@ function ByStateView({ tables }: { tables: StateTable[] }) {
           <StateTableCard
             key={block[0].key}
             table={block[0]}
+            highlightId={highlightId}
             isCollapsed={collapsed.has(block[0].key)}
             isDragging={dragKey === block[0].key}
             onToggle={() => toggleCollapsed(block[0].key)}
@@ -1046,6 +1090,7 @@ function ByStateView({ tables }: { tables: StateTable[] }) {
               <StateTableCard
                 key={table.key}
                 table={table}
+                highlightId={highlightId}
                 isCollapsed={collapsed.has(table.key)}
                 isDragging={dragKey === table.key}
                 onToggle={() => toggleCollapsed(table.key)}
@@ -1063,6 +1108,7 @@ function ByStateView({ tables }: { tables: StateTable[] }) {
 
 function StateTableCard({
   table,
+  highlightId = null,
   isCollapsed,
   isDragging,
   onToggle,
@@ -1071,6 +1117,7 @@ function StateTableCard({
   onDrop,
 }: {
   table: StateTable
+  highlightId?: string | number | null
   isCollapsed: boolean
   isDragging: boolean
   onToggle: () => void
@@ -1080,6 +1127,27 @@ function StateTableCard({
 }) {
   const theme = useTheme()
   const color = table.color
+  const apiRef = useGridApiRef()
+
+  // Deep-linked unit (events timeline): the grid is virtualized, so the row
+  // only gets its 'deep-linked' outline once rendered — jump to its page and
+  // scroll to it, then bring it into the viewport.
+  useEffect(() => {
+    if (highlightId == null) return
+    const index = table.rows.findIndex((r) => String(r.id) === String(highlightId))
+    if (index < 0) return
+    const api = apiRef.current
+    const pageSize = api?.state?.pagination?.paginationModel?.pageSize ?? 25
+    api?.setPage(Math.floor(index / pageSize))
+    const timer = setTimeout(() => {
+      api?.scrollToIndexes?.({ rowIndex: index })
+      document
+        .querySelector(`[data-id="${CSS.escape(String(highlightId))}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [highlightId, table.rows, apiRef])
+
   return (
     <Paper
       variant="outlined"
@@ -1127,6 +1195,7 @@ function StateTableCard({
       <Collapse in={!isCollapsed}>
         <Box sx={{ p: 1 }}>
           <DataGrid
+            apiRef={apiRef}
             rows={table.rows as GridValidRowModel[]}
             columns={table.columns}
             // Fixed height for every table: rows scroll internally and the
@@ -1135,12 +1204,22 @@ function StateTableCard({
             sx={{
               ...dataGridStyles(theme, 'calc(100dvh - 280px)'),
               border: 'none',
+              // Deep-linked unit (events timeline): outlined so it stands out.
+              '& .MuiDataGrid-row.deep-linked': {
+                outline: `2px solid ${theme.palette.primary.main}`,
+                outlineOffset: -2,
+              },
             }}
             pageSizeOptions={[10, 25, 50]}
             initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
             getRowHeight={() => 'auto'}
             getRowClassName={(params) =>
-              params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : ''
+              [
+                params.row.metadata?.raw_unit?.remarks ? 'has-remarks' : '',
+                highlightId !== null && String(params.row.id) === String(highlightId) ? 'deep-linked' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
             }
             slots={{ footer: () => <TableFooter totals={table.totals} /> }}
           />
