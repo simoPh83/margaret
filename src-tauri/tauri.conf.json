@@ -1,7 +1,6 @@
 {
-  "$schema": "https://schema.tauri.app/config/2.11.3",
   "productName": "margaret",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "identifier": "com.simoph83.margaret",
   "build": {
     "frontendDist": "../out",

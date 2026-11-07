@@ -1,7 +1,8 @@
 import { createTheme } from '@mui/material/styles'
 
 export const appTheme = createTheme({
-  cssVariables: { colorSchemeSelector: 'media', cssVarPrefix: 'margaret' },
+  // Class-based color scheme so the UI can toggle it; defaults to the OS preference.
+  cssVariables: { colorSchemeSelector: 'class', cssVarPrefix: 'margaret' },
   colorSchemes: {
     light: {
       palette: {

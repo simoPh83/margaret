@@ -28,7 +28,6 @@ import { buildingAddress, cellNumber, cellText, STATUS_OPTIONS, useUnits, useUpd
 /** Fallback status tints; the API also ships a color per status in cell metadata. */
 const STATUS_COLORS: Record<string, string> = {
   Let: '#66B266',
-  Vacant: '#FFB366',
   'U-O': '#6699FF',
   'Under Ref': '#FFD966',
   Mothballed: '#8B8B8B',
@@ -65,6 +64,8 @@ function statusRowTintStyles(theme: Theme) {
   const dark = theme.palette.mode === 'dark'
   const styles: Record<string, { bgcolor: string }> = {}
   for (const option of STATUS_OPTIONS) {
+    // Vacant rows stay untinted (transparent) — only tint the other statuses.
+    if (option.short === 'Vacant') continue
     const cls = `.MuiDataGrid-row.row-status-${option.short.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
     styles[`& ${cls}`] = { bgcolor: alpha(option.color, dark ? 0.14 : 0.08) }
     styles[`& ${cls}:hover`] = { bgcolor: alpha(option.color, dark ? 0.22 : 0.14) }
@@ -114,8 +115,9 @@ function StatusCell({ row }: { row: GridValidRowModel }) {
   const { enqueueSnackbar } = useSnackbar()
   const mutation = useUpdateUnitStatus()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
-  const color = statusColor(row) ?? theme.palette.grey[500]
   const current = cellText(row, 'status')
+  const isVacant = current === 'Vacant'
+  const color = isVacant ? theme.palette.text.secondary : statusColor(row) ?? theme.palette.grey[500]
   const unitId = row.metadata?.raw_unit?.id
   const editable = typeof unitId === 'number'
   const busy = mutation.isPending && mutation.variables?.unitId === unitId
@@ -142,17 +144,28 @@ function StatusCell({ row }: { row: GridValidRowModel }) {
         onClick={editable ? (e) => setAnchorEl(e.currentTarget) : undefined}
         title={editable ? 'Change status' : undefined}
         sx={{
-          bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.24 : 0.16),
+          // Vacant is transparent: no tint, neutral text and border.
+          bgcolor: isVacant ? 'transparent' : alpha(color, theme.palette.mode === 'dark' ? 0.24 : 0.16),
           color,
           fontWeight: 600,
-          border: `1px solid ${alpha(color, theme.palette.mode === 'dark' ? 0.52 : 0.32)}`,
+          border: `1px solid ${isVacant ? theme.palette.divider : alpha(color, theme.palette.mode === 'dark' ? 0.52 : 0.32)}`,
         }}
       />
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
         {STATUS_OPTIONS.map((option) => (
           <MenuItem key={option.code} selected={option.short === current} onClick={() => pick(option)}>
             <ListItemIcon>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: option.color }} />
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  // Vacant's color is transparent — outline the dot so it stays visible.
+                  bgcolor: option.short === 'Vacant' ? 'transparent' : option.color,
+                  border: option.short === 'Vacant' ? '1px solid' : 'none',
+                  borderColor: 'divider',
+                }}
+              />
             </ListItemIcon>
             <ListItemText
               primary={option.label}

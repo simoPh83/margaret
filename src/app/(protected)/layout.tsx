@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { AppBar, Box, Button, CircularProgress, Tab, Tabs, Toolbar, Typography } from '@mui/material'
+import { AppBar, Box, Button, CircularProgress, IconButton, Tab, Tabs, Toolbar, Typography } from '@mui/material'
+import { useColorScheme } from '@mui/material/styles'
 import { openExternal, setWindowTitleWithVersion } from '@/lib/appInfo'
 import { supabase } from '@/lib/supabase'
 import { checkForUpdate, UpdateInfo } from '@/lib/updater'
@@ -10,6 +11,28 @@ const NAV_TABS = [
   { label: 'Units', path: '/units' },
   { label: 'Charts', path: '/charts' },
 ]
+
+/** Cycles system → light → dark; 'system' keeps following the OS preference. */
+function ThemeModeToggle() {
+  const { mode, setMode } = useColorScheme()
+
+  // mode is undefined until the client resolves the stored/OS preference; show
+  // 'system' in that first pass (matching the server render) to stay hydration-safe.
+  const current = mode ?? 'system'
+  const next = current === 'system' ? 'light' : current === 'light' ? 'dark' : 'system'
+  const icons = { system: '🖥️', light: '☀️', dark: '🌙' } as const
+
+  return (
+    <IconButton
+      size="small"
+      onClick={() => setMode(next)}
+      title={`Theme: ${current} (click for ${next})`}
+      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}
+    >
+      <span style={{ fontSize: 14 }}>{icons[current]}</span>
+    </IconButton>
+  )
+}
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -71,6 +94,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
               {userEmail}
             </Typography>
           )}
+          <ThemeModeToggle />
           <Button variant="outlined" size="small" onClick={logout}>
             Logout
           </Button>
