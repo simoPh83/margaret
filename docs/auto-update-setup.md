@@ -464,6 +464,25 @@ normal installer flow.
 
 ---
 
+## Auto-update at launch (`NEXT_PUBLIC_AUTO_UPDATE`)
+
+The frontend is a static export (`output: 'export'`), so environment variables are baked in
+at build time — a released installer cannot read variables from Vercel or from a `.env` file
+on the user's machine.
+
+`NEXT_PUBLIC_AUTO_UPDATE` controls how a build handles updates:
+
+- `false` (default in local dev, set in `.env.local`): the app only checks for updates after
+  login and shows the manual "Update to …" button in the app bar.
+- `true` (set in `release.yml` for released installers): the app checks for an update at
+  launch, before login, and installs it immediately when one is available. The manual button
+  remains as a fallback if the silent install fails.
+
+Because the value is compiled into the bundle, changing it requires a new build — it is a
+per-release decision, not a per-user setting.
+
+---
+
 ## Part 6 — Adding OS-level code signing later
 
 When you are ready to eliminate the SmartScreen warning (Windows) or Gatekeeper block (macOS),

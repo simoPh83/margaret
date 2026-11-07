@@ -80,6 +80,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          # Released installers auto-update at launch; local dev keeps the manual button.
+          NEXT_PUBLIC_AUTO_UPDATE: 'true'
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Margaret ${{ github.ref_name }}
